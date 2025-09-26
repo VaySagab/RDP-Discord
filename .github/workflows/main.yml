@@ -114,13 +114,12 @@ jobs:
           )
 
           foreach ($app in $apps) {
-            Write-Host "🗑️ Removing $app ..."
+            Write-Host "🗑️ Trying to remove: $app"
             try {
               Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop
-              Write-Host "✅ Successfully removed $app"
+              Write-Host "✅ Removed: $app"
             } catch {
-              $msg = $_.Exception.Message
-              Write-Host "⚠️ Could not remove $app - $msg"
+              Write-Host "⚠️ Could not remove $app - $($_.Exception.Message)"
             }
           }
 
