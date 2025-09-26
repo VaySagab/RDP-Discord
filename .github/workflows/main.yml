@@ -221,8 +221,8 @@ jobs:
             Add-Type @"
             using System.Runtime.InteropServices;
             public class Win32 {
-            [DllImport("user32.dll",SetLastError=true)]
-            public static extern bool SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);
+              [DllImport("user32.dll",SetLastError=true)]
+              public static extern bool SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);
             }
             "@
             [Win32]::SystemParametersInfo(20,0,$out,3) | Out-Null
