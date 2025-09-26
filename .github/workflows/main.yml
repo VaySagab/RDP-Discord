@@ -204,14 +204,13 @@ jobs:
 
           $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
           if (-not (Test-Path $tsExe)) {
-            & $tsExe up `
-            "--authkey=$($env:TAILSCALE_AUTH_KEY)" `
-            "--hostname=gh-runner-$($env:GITHUB_RUN_ID)"
+            $tsExe = "$env:ProgramFiles(x86)\Tailscale\tailscale.exe"
+          }
 
           if (Test-Path $tsExe) {
             try {
               # Bring up Tailscale with auth key and unique hostname
-              & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname=gh-runner-$env:GITHUB_RUN_ID
+              & $tsExe up --authkey="$($env:TAILSCALE_AUTH_KEY)" --hostname="gh-runner-$($env:GITHUB_RUN_ID)"
 
               # Wait until IP is assigned
               $tsIP = $null
@@ -530,7 +529,7 @@ jobs:
           $runId = $env:GITHUB_RUN_ID
 
           # Ambil error terakhir
-          $lastError = if ($Error.Count -gt 0) { $Error[0].ToString() } else { "No error details captured." }
+          $lastError = if ($Error.Count -gt 0) { ($Error[0].ToString() -replace '\r|\n', ' ') } else { "No error details captured." }
 
           $embed = @{
             title = "❌ GalaxyRDP Ultra — Session Failed"
