@@ -173,6 +173,35 @@ jobs:
       # =================================================================
       # Step 3 - Install Tailscale (Yanzz function — preserved)
       # =================================================================
+      - name: 🌐 Install Tailscale
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "🌐 Installing Tailscale (Yanzz installer function)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
+          $installer = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile $installer -UseBasicParsing -ErrorAction Stop
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installer`"", "/quiet", "/norestart" -Wait -ErrorAction Stop
+          Remove-Item $installer -Force -ErrorAction SilentlyContinue
+
+          # Cari lokasi tailscale.exe
+          $tsExe = @(
+            "$env:ProgramFiles\Tailscale\tailscale.exe",
+            "$env:ProgramFiles(x86)\Tailscale\tailscale.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+          if ($tsExe) {
+            Write-Host "✅ Found tailscale.exe at $tsExe" -ForegroundColor Yellow
+            Add-Content -Path $env:GITHUB_ENV -Value "TAILSCALE_PATH=$tsExe"
+          } else {
+            Write-Host "⚠️ tailscale.exe not found after install." -ForegroundColor Red
+          }
+
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host ""
+
       # =================================================================
       # Step 4 - Connect to Tailscale (Yanzz function — preserved)
       # =================================================================
