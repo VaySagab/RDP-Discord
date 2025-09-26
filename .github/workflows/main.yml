@@ -518,6 +518,9 @@ jobs:
           $repo  = $env:GITHUB_REPOSITORY
           $runId = $env:GITHUB_RUN_ID
 
+          # Ambil error terakhir
+          $lastError = if ($Error.Count -gt 0) { $Error[0].ToString() } else { "No error details captured." }
+
           $embed = @{
             title = "❌ GalaxyRDP Ultra — Session Failed"
             description = "The workflow has failed. Please check logs. ⚠️"
@@ -525,7 +528,8 @@ jobs:
             fields = @(
               @{ name = "👤 GitHub User"; value = "$actor"; inline = $true },
               @{ name = "📦 Repository"; value = "$repo"; inline = $true },
-              @{ name = "⚙️ Run ID";     value = "$runId"; inline = $true }
+              @{ name = "⚙️ Run ID";     value = "$runId"; inline = $true },
+              @{ name = "🛑 Error";      value = "```$lastError```"; inline = $false }
             )
             footer = @{
               text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
