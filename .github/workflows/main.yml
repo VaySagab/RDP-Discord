@@ -119,7 +119,8 @@ jobs:
               Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop
               Write-Host "✅ Successfully removed $app"
             } catch {
-              Write-Host "⚠️ Could not remove ${app}: $($_.Exception.Message)"
+              $msg = $_.Exception.Message
+              Write-Host "⚠️ Could not remove $app - $msg"
             }
           }
 
