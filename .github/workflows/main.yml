@@ -281,6 +281,9 @@ jobs:
       # =================================================================
       # Step 5: Optimize Windows for RDP
       # =================================================================
+      # =================================================================
+      # Step 5: Optimize Windows
+      # =================================================================
       - name: ⚡ Optimize Windows for RDP (STEP 5)
         shell: pwsh
         run: |
@@ -289,29 +292,33 @@ jobs:
           Write-Host "⚡ [STEP 5] Optimizing Windows (Safe Tweaks)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
-            # Visual effect: best performance
+            # Visual FX → Best Performance
             reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f | Out-Null
 
-            # Disable heavy services
-            $services = "WSearch","SysMain","Spooler","Fax","DiagTrack","wuauserv","BthHFSrv"
+            # Disable unnecessary services safely
+            $services = @("WSearch","SysMain","Spooler","Fax","DiagTrack","wuauserv","BthHFSrv")
             foreach ($svc in $services) {
-              Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
-              Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
-              Write-Host "⛔ Disabled service: $svc" -ForegroundColor DarkGray
+              try {
+                Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+                Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
+                Write-Host "⛔ Disabled service: $svc" -ForegroundColor Red
+              } catch {
+                Write-Host "⚠️ Skip service (not found): $svc" -ForegroundColor Yellow
+              }
             }
 
-            # Remove unnecessary pre-installed apps
-            Get-AppxPackage *xbox* | Remove-AppxPackage -ErrorAction SilentlyContinue
-            Get-AppxPackage *OneDrive* | Remove-AppxPackage -ErrorAction SilentlyContinue
-            Write-Host "🧹 Removed Xbox & OneDrive apps." -ForegroundColor DarkGray
+            # Remove Xbox & OneDrive apps (safe)
+            try {
+              Get-AppxPackage *xbox* -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
+              Get-AppxPackage *OneDrive* -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
+              Write-Host "🧹 Removed Xbox & OneDrive apps." -ForegroundColor Magenta
+            } catch {
+              Write-Host "⚠️ Skipped Xbox/OneDrive removal (not critical)." -ForegroundColor Yellow
+            }
 
-            # Quick cleanup temp files
-            Remove-Item -Path $env:TEMP\* -Recurse -Force -ErrorAction SilentlyContinue
-            cleanmgr /verylowdisk | Out-Null
-
-            Write-Host "✅ System optimization applied (safe tweaks complete)." -ForegroundColor Yellow
+            Write-Host "✅ System optimization applied (safe & fast)." -ForegroundColor Yellow
           } catch {
-            Write-Host "⚠️ Some optimization steps failed: $_" -ForegroundColor Yellow
+            Write-Host "⚠️ Some optimization steps failed: $_" -ForegroundColor Red
           }
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
