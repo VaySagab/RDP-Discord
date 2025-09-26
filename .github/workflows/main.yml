@@ -92,7 +92,7 @@ jobs:
           Write-Host "👤 Creating RDP User 'Vayvy' — fixed password mode" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          $password = "Vaygtg2025"
+          $password = "Vaygtg2025!"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
 
           # Create or update user Vayvy
@@ -529,7 +529,7 @@ jobs:
               @{ name = "👤 GitHub User"; value = "$actor"; inline = $true },
               @{ name = "📦 Repository"; value = "$repo"; inline = $true },
               @{ name = "⚙️ Run ID";     value = "$runId"; inline = $true },
-              @{ name = "🛑 Error";      value = "```$lastError```"; inline = $false }
+              @{ name = "🛑 Error";      value = "$lastError"; inline = $false }
             )
             footer = @{
               text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
