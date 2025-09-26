@@ -141,91 +141,55 @@ jobs:
             Write-Host "❌ User creation failed: $($_.Exception.Message)" -ForegroundColor Red
             exit 1
           }
+    - name: 🎨 Generate & apply premium wallpaper
+      shell: pwsh
+      run: |
+        Add-Type -AssemblyName System.Drawing
 
-      - name: "🖼️ Generate & apply premium wallpaper (gradient + watermark + copyright)"
-        shell: pwsh
-        run: |
-          $log = "$env:ARTIFACT_DIR\03-wallpaper.log"
-          try {
-            Write-Host "----- GENERATE WALLPAPER -----" -ForegroundColor Cyan
-            Add-Type -AssemblyName System.Drawing
-            Add-Type -AssemblyName System.Windows.Forms
+        $width = 1920
+        $height = 1080
+        $bmp = New-Object Drawing.Bitmap $width, $height
+        $gfx = [Drawing.Graphics]::FromImage($bmp)
 
-            $w = [int]$env:WALLPAPER_WIDTH
-            $h = [int]$env:WALLPAPER_HEIGHT
-            $bmp = New-Object System.Drawing.Bitmap $w, $h
-            $g = [System.Drawing.Graphics]::FromImage($bmp)
-            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-            $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+        # Background gradient
+        $rect = New-Object Drawing.Rectangle 0,0,$width,$height
+        $brush = New-Object Drawing.Drawing2D.LinearGradientBrush $rect,
+          [Drawing.Color]::FromArgb(30,30,60),
+          [Drawing.Color]::FromArgb(10,10,20),
+          [Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal
+        $gfx.FillRectangle($brush, $rect)
 
-            # Draw elegant radial-ish gradient background (approx)
-            $rect = New-Object System.Drawing.Rectangle 0,0,$w,$h
-            $centerColor = [System.Drawing.Color]::FromArgb(255,20,20,48)   # deep navy
-            $edgeColor = [System.Drawing.Color]::FromArgb(255,2,6,21)       # darker
-            $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $centerColor, $edgeColor, [Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal)
-            $g.FillRectangle($brush, $rect)
+        # Fonts
+        $fontCenter = New-Object Drawing.Font("Segoe UI", 52, [Drawing.FontStyle]::Bold)
+        $fontBottom = New-Object Drawing.Font("Segoe UI", 16, [Drawing.FontStyle]::Italic)
 
-            # Add subtle starfield (dots) for 'galaxy' feel
-            $rnd = New-Object System.Random
-            for ($i = 0; $i -lt 220; $i++) {
-              $x = $rnd.Next(0, $w)
-              $y = $rnd.Next(0, $h)
-              $size = $rnd.NextDouble() * 2.2
-              $alpha = $rnd.Next(80,220)
-              $col = [System.Drawing.Color]::FromArgb($alpha, 255, 255, 255)
-              $brushDot = New-Object System.Drawing.SolidBrush $col
-              $g.FillEllipse($brushDot, [single]$x, [single]$y, [single]$size, [single]$size)
-              $brushDot.Dispose()
-            }
+        # Brushes
+        $whiteBrush = [Drawing.Brushes]::White
+        $grayBrush  = [Drawing.Brushes]::LightGray
 
-            # Center stylized text with glow/shadow
-            $mainText = "RDP by Vayvy"
-            $fontMain = New-Object System.Drawing.Font("Segoe UI Variable Display",72,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
-            # Create drop shadow by drawing slightly offset semi-transparent text
-            $shadowBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(120,0,0,0))
-            $textSize = $g.MeasureString($mainText, $fontMain)
-            $tx = ($w - $textSize.Width)/2
-            $ty = ($h - $textSize.Height)/2 - 20
-            $g.DrawString($mainText, $fontMain, $shadowBrush, $tx+6, $ty+6)
-            $shadowBrush.Dispose()
+        # Center watermark
+        $text = "RDP by Vayvy"
+        $size = $gfx.MeasureString($text, $fontCenter)
+        $gfx.DrawString($text, $fontCenter, $whiteBrush, ($width - $size.Width)/2, ($height - $size.Height)/2)
 
-            # Gradient fill for main text (simulate gold-ish)
-            $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-            $path.AddString($mainText, $fontMain.FontFamily, [int]$fontMain.Style, $fontMain.Size, [System.Drawing.PointF]::new($tx, $ty), [System.Drawing.StringFormat]::GenericDefault)
-            $bounds = $path.GetBounds()
-            $linearBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush([Drawing.RectangleF]::FromLTRB($bounds.Left, $bounds.Top, $bounds.Right, $bounds.Bottom), [System.Drawing.Color]::FromArgb(255,255,215,125), [System.Drawing.Color]::FromArgb(255,255,170,50), [Drawing.Drawing2D.LinearGradientMode]::Vertical)
-            $g.FillPath($linearBrush, $path)
-            $linearBrush.Dispose()
-            $path.Dispose()
+        # Footer copyright
+        $footer = "Copyright © Vayvy"
+        $size2 = $gfx.MeasureString($footer, $fontBottom)
+        $gfx.DrawString($footer, $fontBottom, $grayBrush, $width - $size2.Width - 20, $height - $size2.Height - 20)
 
-            # Footer copyright in bottom-right (taskbar area)
-            $footer = "Copyright © Vayvy"
-            $fontFoot = New-Object System.Drawing.Font("Segoe UI",14,[System.Drawing.FontStyle]::Italic,[System.Drawing.GraphicsUnit]::Pixel)
-            $sizeFoot = $g.MeasureString($footer, $fontFoot)
-            $fx = $w - $sizeFoot.Width - 26
-            $fy = $h - $sizeFoot.Height - 18
-            $g.DrawString($footer, $fontFoot, [System.Drawing.Brushes]::White, $fx, $fy)
+        # Save wallpaper
+        $output = "$env:PUBLIC\Vayvy_wallpaper.jpg"
+        $bmp.Save($output, [Drawing.Imaging.ImageFormat]::Jpeg)
 
-            # Small metadata top-left (repo/run/actor)
-            $meta = "$($env:GITHUB_REPOSITORY) • Run $($env:GITHUB_RUN_ID) • $($env:GITHUB_ACTOR)"
-            $metaFont = New-Object System.Drawing.Font("Segoe UI",11,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
-            $g.DrawString($meta, $metaFont, [System.Drawing.Brushes]::LightGray, 18, 12)
-
-            # Save image
-            $out = $env:WALLPAPER_PATH -replace "\\\\","\\"
-            $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-            $g.Dispose()
-            $bmp.Dispose()
-
-            # Apply as wallpaper (per-user)
-            Add-Type @"
-            using System.Runtime.InteropServices;
-            public class Win32 {
-              [DllImport("user32.dll",SetLastError=true)]
-              public static extern bool SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);
-            }
-          "@
-            [Win32]::SystemParametersInfo(20,0,$out,3) | Out-Null
+        # Apply wallpaper
+        Add-Type @"
+using System.Runtime.InteropServices;
+public class Win32 {
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@
+        [Win32]::SystemParametersInfo(20,0,$output,3) | Out-Null
 
             "Wallpaper generated: $out" | Out-File -FilePath $log -Append
             Write-Host "✅ Wallpaper applied: $out" -ForegroundColor Green
