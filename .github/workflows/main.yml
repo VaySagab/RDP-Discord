@@ -124,6 +124,37 @@ jobs:
           }
 
           Write-Host "✨ Cleanup finished, system should be lighter now!"
+          
+            Write-Host "----- OPTIMIZING SERVICES -----"
+
+          # Disable telemetry & diagnostics
+          Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service DiagTrack -ErrorAction SilentlyContinue
+
+          # Disable MapsBroker (background maps service)
+          Set-Service MapsBroker -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service MapsBroker -ErrorAction SilentlyContinue
+
+          # Disable Xbox Live services (kecuali IdentityProvider biar RDP aman)
+          'XblAuthManager','XblGameSave','XboxNetApiSvc' | ForEach-Object {
+            Write-Host "🛑 Disabling service: $_"
+            Set-Service $_ -StartupType Disabled -ErrorAction SilentlyContinue
+            Stop-Service $_ -ErrorAction SilentlyContinue
+          }
+
+          # Disable Windows Update Delivery Optimization
+          Set-Service DoSvc -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service DoSvc -ErrorAction SilentlyContinue
+
+          Write-Host "✅ Services optimized!"
+
+          Write-Host "----- OPTIMIZING VISUALS -----"
+
+          # Disable animations & transparency for smoother RDP
+          Set-ItemProperty "HKCU:\Control Panel\Desktop" "UserPreferencesMask" ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00)) -ErrorAction SilentlyContinue
+          Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2 -ErrorAction SilentlyContinue
+
+          Write-Host "✨ Visual tweaks applied!"
 
       - name: "👤 Create local RDP user (Vayvy) — password fixed"
         shell: pwsh
@@ -161,49 +192,61 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host "🖼️ Generating Custom Wallpaper (Vayvy watermark & footer)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
           try {
-            Add-Type -AssemblyName System.Drawing
-            $width = [int]$env:WALLPAPER_WIDTH; $height = [int]$env:WALLPAPER_HEIGHT
+            # Pastikan folder Pictures ada
+            $picDir = "$env:USERPROFILE\Pictures"
+            if (-not (Test-Path $picDir)) {
+              New-Item -ItemType Directory -Path $picDir | Out-Null
+            }
+
+            # Load System.Drawing dengan pengecekan
+            try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } 
+            catch { throw "System.Drawing not available: $($_.Exception.Message)" }
+
+            # Dimensi wallpaper (default 1920x1080 jika env kosong)
+            $width = if ($env:WALLPAPER_WIDTH) { [int]$env:WALLPAPER_WIDTH } else { 1920 }
+            $height = if ($env:WALLPAPER_HEIGHT) { [int]$env:WALLPAPER_HEIGHT } else { 1080 }
+
             $bmp = New-Object System.Drawing.Bitmap $width, $height
             $g = [System.Drawing.Graphics]::FromImage($bmp)
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
             $g.Clear([System.Drawing.Color]::Black)
 
-            # Main text in center
+            # Main text
             $mainText = "🌌 GalaxyRDP Ultra by Vayvy 🚀"
-            $fontMain = New-Object System.Drawing.Font("Consolas", 72, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+            $fontMain = New-Object System.Drawing.Font("Consolas", 72, [System.Drawing.FontStyle]::Bold)
             $brushMain = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Lime)
             $size = $g.MeasureString($mainText, $fontMain)
-            $x = ($width - $size.Width) / 2
-            $y = ($height - $size.Height) / 2
-            $g.DrawString($mainText, $fontMain, $brushMain, $x, $y)
+            $g.DrawString($mainText, $fontMain, $brushMain, ($width-$size.Width)/2, ($height-$size.Height)/2)
 
             # Watermark (top-right)
             $wmText = "$($env:GITHUB_REPOSITORY) | Run $($env:GITHUB_RUN_ID) | $($env:GITHUB_ACTOR)"
-            $wmFont = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $wmFont = New-Object System.Drawing.Font("Arial", 18)
             $wmSize = $g.MeasureString($wmText, $wmFont)
-            $wmX = $width - $wmSize.Width - 20
-            $wmY = 20
-            $g.DrawString($wmText, $wmFont, [System.Drawing.Brushes]::Gray, $wmX, $wmY)
+            $g.DrawString($wmText, $wmFont, [System.Drawing.Brushes]::Gray, $width-$wmSize.Width-20, 20)
 
             # Footer (bottom-right)
             $footer = "⚡ Powered by GitHub Actions"
-            $footerFont = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $footerFont = New-Object System.Drawing.Font("Arial", 18)
             $footerSize = $g.MeasureString($footer, $footerFont)
-            $fx = $width - $footerSize.Width - 20
-            $fy = $height - $footerSize.Height - 20
-            $g.DrawString($footer, $footerFont, [System.Drawing.Brushes]::DarkGray, $fx, $fy)
+            $g.DrawString($footer, $footerFont, [System.Drawing.Brushes]::DarkGray, $width-$footerSize.Width-20, $height-$footerSize.Height-20)
 
-            # Save and apply
-            $outPath = "$env:USERPROFILE\Pictures\galaxyrdp-wallpaper.jpg"
+            # Save
+            $outPath = "$picDir\galaxyrdp-wallpaper.jpg"
             $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-            Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $outPath
-            rundll32.exe user32.dll, UpdatePerUserSystemParameters
+            Write-Host "✅ Wallpaper image created: $outPath"
 
-            Write-Host "✅ Wallpaper applied successfully (with dynamic watermark & footer)."
-          } catch {
-            Write-Host "⚠️ Wallpaper generation failed: $_" -ForegroundColor Yellow
+            # Apply wallpaper via registry (fallback aman)
+            Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $outPath -ErrorAction SilentlyContinue
+            rundll32.exe user32.dll, UpdatePerUserSystemParameters ,1 ,True
+
+            Write-Host "✅ Wallpaper applied successfully (or will apply on next login)"
           }
+          catch {
+            Write-Host "⚠️ Wallpaper generation failed: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
@@ -332,7 +375,7 @@ jobs:
             Write-Host "⚠️ Snapshot failed: $($_.Exception.Message)"
           }
 
-      - name: "🔔 Discord — Notify READY (includes Tailscale IP & RDP credentials)"
+      - name: "🔔 Discord — Notify READY (Vayvy GalaxyRDP Ultra)"
         if: success()
         shell: pwsh
         run: |
@@ -342,12 +385,47 @@ jobs:
               Write-Host "⚠️ Discord webhook not configured; skipping."
               exit 0
             }
-            $ts = $env:TAILSCALE_IP
-            if (-not $ts -or $ts -eq "") { $ts = "Unknown" }
+
+            $ts = if ($env:TAILSCALE_IP) { $env:TAILSCALE_IP } else { "Unknown" }
+            $rnd = Get-Random -Minimum 1 -Maximum 6   # pilih 1–5 style notifikasi
+
+            switch ($rnd) {
+              1 {
+                $title = "✅ Vayvy GalaxyRDP Ultra — Session Ready"
+                $desc  = "RDP provisioned. Connect with Tailscale IP for reliable access."
+                $color = 5763719 # hijau
+                $footer = "Vayvy GalaxyRDP • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+              }
+              2 {
+                $title = "🚀 Your RDP is LIVE!"
+                $desc  = "✨ Powered by Vayvy. Use the credentials below to connect."
+                $color = 3447003 # biru
+                $footer = "Keep hacking • $(Get-Date -Format 'HH:mm:ss')"
+              }
+              3 {
+                $title = "🌌 GalaxyRDP Ultra — All Systems Go"
+                $desc  = "🔐 Secure RDP environment provisioned via GitHub Actions."
+                $color = 16776960 # kuning
+                $footer = "Session generated @ $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+              }
+              4 {
+                $title = "⚡ Instant RDP Boost Online"
+                $desc  = "Your high-speed RDP is now running. Credentials below 👇"
+                $color = 10181046 # ungu
+                $footer = "⚡ Optimized by Vayvy • $(Get-Date -Format 'HH:mm')"
+              }
+              5 {
+                $title = "🛰️ Control Center Update"
+                $desc  = "GalaxyRDP Ultra node deployed successfully. Access granted."
+                $color = 15844367 # oranye
+                $footer = "🛰️ Status report • $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+              }
+            }
+
             $embed = @{
-              title = "✅ Vayvy GalaxyRDP Ultra — Session Ready"
-              description = "RDP provisioned. Connect with Tailscale IP for reliable access."
-              color = 5763719
+              title = $title
+              description = $desc
+              color = $color
               fields = @(
                 @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
                 @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true },
@@ -355,26 +433,45 @@ jobs:
                 @{ name = "🔌 RDP Port"; value = $env:RDP_PORT; inline = $true },
                 @{ name = "🕒 Keep-Alive (mins)"; value = $env:KEEP_ALIVE_MINUTES; inline = $true }
               )
-              footer = @{ text = "Vayvy GalaxyRDP • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
+              footer = @{ text = $footer }
             }
-            $payload = @{ username = "Vayvy RDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 8
+
+            $payload = @{
+              username = "Vayvy RDP Bot"
+              embeds   = @($embed)
+            } | ConvertTo-Json -Depth 8
+
             Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json' -ErrorAction Stop
-            Write-Host "✅ Discord READY notification sent."
+            Write-Host "✅ Discord READY notification sent (variant $rnd)."
           } catch {
             Write-Host "⚠️ Discord notify failed: $($_.Exception.Message)"
           }
 
-      - name: "⏳ Keep-Alive Loop (heartbeat only)"
+      - name: "⏳ Keep-Alive Loop (non-blocking)"
         shell: pwsh
         run: |
           $interval = [int]$env:KEEP_ALIVE_INTERVAL_SECS
+          if ($interval -le 0) { $interval = 60 }   # default 60 detik
           $end = (Get-Date).AddMinutes([int]$env:KEEP_ALIVE_MINUTES)
-          while ((Get-Date) -lt $end) {
-            $cpu = (Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue
-            $memFree = (Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue
-            Write-Host "[Heartbeat] $(Get-Date -Format o) | CPU: $([math]::Round($cpu,2))% | FreeMB: $([math]::Round($memFree,2))"
-            Start-Sleep -Seconds $interval
-          }
+
+          Write-Host "⏳ Keep-Alive background job started until $end (interval $interval secs)."
+
+          Start-Job -ScriptBlock {
+            param($end, $interval)
+            while ((Get-Date) -lt $end) {
+              try {
+                $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+                $cpuLoad = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
+                if (-not $cpuLoad) { $cpuLoad = 0 }
+                $memFree = if ($os) { [math]::Round($os.FreePhysicalMemory / 1024, 2) } else { 0 }
+
+                Write-Output "[Heartbeat] $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | CPU: $cpuLoad% | FreeMB: $memFree"
+              } catch {
+                Write-Output "[Heartbeat] $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | CPU: N/A | FreeMB: N/A"
+              }
+              Start-Sleep -Seconds $interval
+            }
+          } -ArgumentList $end, $interval | Out-Null
 
       - name: "📦 Upload artifacts (wallpaper & creds)"
         uses: actions/upload-artifact@v4
