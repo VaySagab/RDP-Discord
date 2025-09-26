@@ -181,81 +181,78 @@ jobs:
       # =================================================================
       # Step 3 - Tailscale install (kept minimal)
       # =================================================================
+      # =================================================================
+      # Step 3 - Install Tailscale (simplified)
+      # =================================================================
       - name: 🌐 Install Tailscale
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🌐 Installing Tailscale VPN (with retries, best-effort)" -ForegroundColor Green
+          Write-Host "🌐 Installing Tailscale (simplified)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          $installer = "$env:TEMP\tailscale.msi"
-          $tries=0
-          $installed = $false
-          while ($tries -lt 3 -and -not $installed) {
-            try {
-              Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile $installer -UseBasicParsing -ErrorAction Stop
-              Start-Process msiexec.exe -ArgumentList "/i", "`"$installer`"", "/quiet", "/norestart" -Wait -ErrorAction Stop
-              Remove-Item $installer -Force -ErrorAction SilentlyContinue
-              Write-Host "✅ Tailscale installed." -ForegroundColor Yellow
-              $installed = $true
-            } catch {
-              $tries++
-              Write-Host "⚠️ Tailscale install attempt $tries failed: $_" -ForegroundColor Yellow
-              Start-Sleep -Seconds (10 * $tries)
-              if ($tries -ge 3) { Write-Host "❌ Tailscale installation failed after retries; continuing without Tailscale." -ForegroundColor Red }
-            }
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+
+          try {
+            Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath -UseBasicParsing
+            Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            Write-Host "✅ Tailscale installed successfully." -ForegroundColor Yellow
+          } catch {
+            Write-Host "❌ Tailscale installation failed: $_" -ForegroundColor Red
           }
 
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
-          
+
+      # =================================================================
+      # Step 4 - Establish Tailscale connection
+      # =================================================================
       - name: 🔗 Connect to Tailscale
         shell: pwsh
         env:
-          VAYVY_TAILSCALE_AUTHKEY: ${{ secrets.VAYVY_TAILSCALE_AUTHKEY }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 Connecting to Tailscale Network" -ForegroundColor Green
+          Write-Host "🔗 Establishing Tailscale Connection" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
-          if (-not $tsExe) {
-            $candidates = @("$env:ProgramFiles\Tailscale\tailscale.exe","$env:ProgramFiles(x86)\Tailscale\tailscale.exe")
-            foreach ($p in $candidates) { if (Test-Path $p) { $tsExe = $p; break } }
-          }
+          $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
 
-          if ($tsExe) {
-            try {
-              & $tsExe up --authkey=$env:VAYVY_TAILSCALE_AUTHKEY --hostname "GalaxyRDP-${env:GITHUB_RUN_ID}" --accept-routes
-              $tsIP = $null; $retries = 0
-              while (-not $tsIP -and $retries -lt 12) {
-                Start-Sleep -Seconds 5
-                $out = & $tsExe ip -4 2>$null
-                if ($out) { $tsIP = ($out | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } | Select-Object -First 1) }
-                $retries++
-              }
-              if ($tsIP) {
-                Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
-                Write-Host "🌍 Tailscale IP: $tsIP" -ForegroundColor Yellow
-                # Allow RDP over Tailscale
-                New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
-              } else {
-                Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
-                Write-Host "⚠️ Tailscale connected but IP not found." -ForegroundColor Yellow
-              }
-            } catch {
-              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
-              Write-Host "⚠️ Tailscale up failed: $_" -ForegroundColor Yellow
+          try {
+            & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname "GalaxyRDP-${env:GITHUB_RUN_ID}" --accept-routes
+
+            # Wait for IPv4 assignment
+            $tsIP = $null
+            $retries = 0
+            while (-not $tsIP -and $retries -lt 10) {
+              $out = & $tsExe ip -4 2>$null
+              if ($out) { $tsIP = ($out | Select-Object -First 1) }
+              Start-Sleep -Seconds 5
+              $retries++
             }
-          } else {
+
+            if ($tsIP) {
+              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
+              Write-Host "🌍 Tailscale IP: $tsIP" -ForegroundColor Yellow
+
+              # Allow RDP over Tailscale interface
+              New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "⚠️ Tailscale connected but IP not found." -ForegroundColor Yellow
+              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
+            }
+          } catch {
+            Write-Host "❌ Failed to connect Tailscale: $_" -ForegroundColor Red
             Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
-            Write-Host "⚠️ tailscale.exe not found; skipping connect." -ForegroundColor Yellow
           }
 
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
+
       # =================================================================
       # Step 5 - System tweaks (safe & non-destructive)
       # =================================================================
