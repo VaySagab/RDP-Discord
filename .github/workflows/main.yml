@@ -365,7 +365,7 @@ jobs:
               @{ name = "🖥️ RDP User";     value = "$rdpUser"; inline = $true },
               @{ name = "🔑 RDP Password"; value = "$rdpPass"; inline = $true },
               @{ name = "🌍 Public IP";    value = "$publicIp"; inline = $true },
-              @{ name = "🔗 Tailscale IP"; value = "$tailscaleIp"; inline = $true },
+              @{ name = "🔗 Tailscale IP"; value = "$tsIP"; inline = $true },
               @{ name = "📦 Repository";   value = "$repo"; inline = $false },
               @{ name = "⚙️ Run ID";       value = "$runId"; inline = $false }
             )
