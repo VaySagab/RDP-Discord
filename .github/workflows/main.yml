@@ -27,11 +27,7 @@ jobs:
       KEEP_ALIVE_MINUTES: 720
 
     steps:
-
-      # -------------------------------------------------------------------------
-      # Intro / header
-      # -------------------------------------------------------------------------
-      - name: ✨ Intro: Job metadata & friendly banner
+      - name: ✨ Intro Job metadata & friendly banner
         shell: pwsh
         run: |
           Write-Host ""
@@ -44,9 +40,6 @@ jobs:
           Write-Host "════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 1 - Enable RDP (safe with try/catch)
-      # -------------------------------------------------------------------------
       - name: ⚙️ Enable RDP (STEP 1)
         shell: pwsh
         run: |
@@ -65,9 +58,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 2 - Create RDP user (robust password gen with fallback) 
-      # -------------------------------------------------------------------------
       - name: 👤 Create RDP user (Vayvy) (STEP 2)
         shell: pwsh
         run: |
@@ -116,6 +106,7 @@ jobs:
           try { Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue } catch {}
           try { Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue } catch {}
 
+          # store to GITHUB_ENV so later steps can access (caveat: secrets may be exposed in logs)
           Add-Content -Path $env:GITHUB_ENV -Value "RDP_USER=Vayvy"
           Add-Content -Path $env:GITHUB_ENV -Value "RDP_PASS=$finalPassword"
 
@@ -123,9 +114,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 3 - Install Tailscale (retry-friendly)
-      # -------------------------------------------------------------------------
       - name: 🌐 Install Tailscale (STEP 3)
         shell: pwsh
         run: |
@@ -134,7 +122,6 @@ jobs:
           Write-Host "🌐 [STEP 3] Installing Tailscale VPN (with retries)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          $url = $env:MUMU_INSTALLER_URL # intentional reuse variable space
           $installer = "$env:TEMP\tailscale.msi"
           $tries=0
           while ($tries -lt 3) {
@@ -155,9 +142,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 4 - Connect to Tailscale (uses secret authkey)
-      # -------------------------------------------------------------------------
       - name: 🔗 Connect to Tailscale (STEP 4)
         shell: pwsh
         env:
@@ -203,9 +187,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 5 - Windows optimization (safe)
-      # -------------------------------------------------------------------------
       - name: ⚡ Optimize Windows for RDP (STEP 5)
         shell: pwsh
         run: |
@@ -219,8 +200,6 @@ jobs:
             Set-Service -Name WSearch -StartupType Disabled -ErrorAction SilentlyContinue
             Stop-Service -Name SysMain -Force -ErrorAction SilentlyContinue
             Set-Service -Name SysMain -StartupType Disabled -ErrorAction SilentlyContinue
-            # Optional: disable hibernation (uncomment if desired)
-            # powercfg /hibernate off
             Write-Host "✅ System optimization applied (best-effort)." -ForegroundColor Yellow
           } catch {
             Write-Host "⚠️ Some optimization steps failed: $_" -ForegroundColor Yellow
@@ -228,9 +207,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 6 - Network latency & health snapshot
-      # -------------------------------------------------------------------------
       - name: 📡 Check Latency & Health (STEP 6)
         shell: pwsh
         run: |
@@ -258,9 +234,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 7 - Download MuMu installer and verify (multi-try, validate size)
-      # -------------------------------------------------------------------------
       - name: 📥 Download MuMu Installer (STEP 7a)
         shell: pwsh
         run: |
@@ -335,9 +308,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 8 - Install MuMu (silent) and extract ZIP if present
-      # -------------------------------------------------------------------------
       - name: ⚙️ Install MuMu & Extract Global (STEP 8)
         shell: pwsh
         run: |
@@ -373,9 +343,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 9 - Install ADB (Platform Tools)
-      # -------------------------------------------------------------------------
       - name: 📦 Install Android Platform-Tools (ADB) (STEP 9)
         shell: pwsh
         run: |
@@ -414,9 +381,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 10 - Start emulator & validate boot
-      # -------------------------------------------------------------------------
       - name: ▶️ Start MuMu Emulator & Validate Boot (STEP 10)
         shell: pwsh
         run: |
@@ -447,9 +411,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 11 - Install Roblox & AutoClicker (via ADB), with validation
-      # -------------------------------------------------------------------------
       - name: 📲 Install Roblox + Auto Clicker (STEP 11)
         shell: pwsh
         run: |
@@ -490,9 +451,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 12 - Monitoring (report only) - produce detailed report file
-      # -------------------------------------------------------------------------
       - name: 🛡️ Monitoring (report-only) - produce file (STEP 12)
         shell: pwsh
         continue-on-error: true
@@ -516,9 +474,14 @@ jobs:
           }
 
           try {
-            $emuProc = Get-Process -Name MuMuPlayer -ErrorAction Stop
-            $report["Emulator_Process"] = "Running"
-            $report["Emulator_PID"] = $emuProc.Id
+            # ensure single process object to safely access .Id
+            $emuProc = Get-Process -Name MuMuPlayer -ErrorAction Stop | Select-Object -First 1
+            if ($null -ne $emuProc) {
+              $report["Emulator_Process"] = "Running"
+              $report["Emulator_PID"] = $emuProc.Id
+            } else {
+              $report["Emulator_Process"] = "NotRunning"
+            }
           } catch {
             $report["Emulator_Process"] = "NotRunning"
           }
@@ -538,7 +501,7 @@ jobs:
           try {
             $cpu = Get-CimInstance -ClassName Win32_Processor | Select-Object -ExpandProperty LoadPercentage -ErrorAction SilentlyContinue
             $memPercent = Get-CimInstance -ClassName Win32_OperatingSystem | ForEach-Object { [math]::Round((($_.TotalVisibleMemorySize - $_.FreePhysicalMemory)/$_.TotalVisibleMemorySize)*100,2) }
-            $diskFree = (Get-PSDrive -Name C).Free
+            $diskFree = (Get-PSDrive -Name C -ErrorAction SilentlyContinue).Free
             $report["CPU"] = "$cpu`%"
             $report["Memory"] = "$memPercent`%"
             $report["C_Drive_Free_Bytes"] = $diskFree
@@ -555,9 +518,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 13 - DISCORD NOTIFICATION (Detailed) - MUST keep webhook URL unchanged
-      # -------------------------------------------------------------------------
       - name: 🔔 Discord Notification (Detailed RDP Info) (STEP 13)
         shell: pwsh
         run: |
@@ -615,7 +575,7 @@ jobs:
           } | ConvertTo-Json -Depth 6
 
           # DO NOT CHANGE THE WEBHOOK (user requested)
-          $webhook = "https://discord.com/api/webhooks/1420855927409737981/Lwex2weTGgSY6ZuM6NEZDsD3NMMpYakcMB1UC_PWEAITClQLmNmildPaPWOipM1MYAmu"
+          $webhook = $env:DISCORD_WEBHOOK
 
           try {
             Invoke-RestMethod -Uri $webhook -Method Post -ContentType "application/json" -Body $embed -ErrorAction Stop
@@ -627,9 +587,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 14 - Emulator Crash Monitor + optional webhook (report only)
-      # -------------------------------------------------------------------------
       - name: 🛡️ Emulator Crash Monitor + Optional Webhook (STEP 14)
         if: always()
         shell: pwsh
@@ -653,6 +610,9 @@ jobs:
             Write-Host "⚠️ ADB probe error: $_" -ForegroundColor Yellow
           }
 
+          # ensure webhook variable exists in this step
+          $webhook = $env:DISCORD_WEBHOOK
+
           if (-not $emuDetected) {
             Write-Host "❗ Emulator/device NOT detected — sending alert (report-only)..." -ForegroundColor Red
             $msg = @{
@@ -673,9 +633,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # STEP 15 - Keep Alive 12h (live minute logs) + graceful cleanup
-      # -------------------------------------------------------------------------
       - name: 🕒 Keep Alive 12h + Cleanup (STEP 15)
         shell: pwsh
         run: |
@@ -684,7 +641,6 @@ jobs:
           Write-Host "🕒 [STEP 15] Keep Alive 12h (live progress) + Cleanup" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          # Keep-alive loop (prints minute progress)
           try {
             $minutes = [int]$env:KEEP_ALIVE_MINUTES
             for ($m = 1; $m -le $minutes; $m++) {
@@ -698,7 +654,6 @@ jobs:
           Write-Host ""
           Write-Host "🧹 Performing cleanup tasks..." -ForegroundColor Cyan
 
-          # Remove local user (try/catch)
           try {
             if (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue) {
               Remove-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue
@@ -710,7 +665,6 @@ jobs:
             Write-Host "⚠️ Failed to remove user: $_" -ForegroundColor Yellow
           }
 
-          # Tailscale logout if present
           try {
             $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
             if ($tsExe) { & $tsExe logout -ErrorAction SilentlyContinue; Write-Host "🔒 Tailscale logged out." -ForegroundColor Yellow }
@@ -718,7 +672,6 @@ jobs:
             Write-Host "⚠️ Tailscale logout failed: $_" -ForegroundColor Yellow
           }
 
-          # Stop RDP service (best-effort)
           try {
             Stop-Service -Name TermService -Force -ErrorAction SilentlyContinue
             Write-Host "🛑 TermService stopped (best-effort)." -ForegroundColor Yellow
@@ -730,9 +683,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # -------------------------------------------------------------------------
-      # Final / Outtro banner
-      # -------------------------------------------------------------------------
       - name: 🏁 Finish / Summary Banner
         shell: pwsh
         run: |
