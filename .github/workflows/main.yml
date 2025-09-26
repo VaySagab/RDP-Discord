@@ -204,8 +204,9 @@ jobs:
 
           $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
           if (-not (Test-Path $tsExe)) {
-            $tsExe = "$env:ProgramFiles(x86)\Tailscale\tailscale.exe"
-          }
+            & $tsExe up `
+            "--authkey=$($env:TAILSCALE_AUTH_KEY)" `
+            "--hostname=gh-runner-$($env:GITHUB_RUN_ID)"
 
           if (Test-Path $tsExe) {
             try {
@@ -306,7 +307,7 @@ jobs:
           try {
             $target = if ($env:TS_IP -and $env:TS_IP -ne 'Unknown') { $env:TS_IP } else { '8.8.8.8' }
             Write-Host "↔️ Pinging $target ..."
-            Test-Connection -ComputerName $target -Count 4 -ErrorAction SilentlyContinue | Format-Table
+            ping.exe $target -n 4
           } catch {
             Write-Host "⚠️ Ping test failed: $_" -ForegroundColor Yellow
           }
