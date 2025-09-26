@@ -85,7 +85,7 @@ jobs:
             throw
           }
 
-      - name: 🧹 Optimize system: remove non-essential apps (make RDP snappier)
+      - name: 🧹 Optimize system remove non-essential apps (make RDP snappier)
         shell: pwsh
         run: |
           Write-Host "----- CLEANUP: uninstall common bloat / store apps -----"
