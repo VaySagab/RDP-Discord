@@ -13,7 +13,7 @@ jobs:
       # EDIT THESE (strongly recommended to use GitHub Secrets)
       # ---------------------------
       # Discord webhook: move to secrets (recommended: secrets.DISCORD_WEBHOOK)
-      DISCORD_WEBHOOK: "PASTE_YOUR_DISCORD_WEBHOOK_HERE"
+      DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
 
       # Tailscale auth key: recommended to use secrets.TAILSCALE_AUTH_KEY
       USE_INLINE_TAILSCALE_KEY: "false"
