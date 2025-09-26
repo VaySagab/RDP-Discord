@@ -85,99 +85,45 @@ jobs:
       # =================================================================
       # Step 2 - Create RDP User (Yanzz function, username set to Vayvy)
       # =================================================================
-      - name: ⚙️ Try disable password complexity (best-effort)
+      - name: 👤 Create RDP user (Vayvy)
         shell: pwsh
         run: |
-          Write-Host "Attempting to relax local password policy (best-effort)..."
-          try {
-            secedit /export /cfg C:\secpol.cfg | Out-Null
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          Write-Host "👤 Creating RDP User 'Vayvy' — using Yanzz password generation (function preserved)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            $cfg = Get-Content C:\secpol.cfg -Raw
+          # Yanzz-style secure random password generation (function preserved)
+          Add-Type -AssemblyName System.Security
+          $charSet = @{
+              Upper   = [char[]](65..90)
+              Lower   = [char[]](97..122)
+              Number  = [char[]](48..57)
+          }
+          $rawPassword = @()
+          $rawPassword += $charSet.Upper | Get-Random -Count 1
+          $rawPassword += $charSet.Lower | Get-Random -Count 1
+          $rawPassword += $charSet.Number | Get-Random -Count 1
+          $password = -join ($rawPassword | Sort-Object { Get-Random })
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
 
-            # Common keys to change — try multiple possible patterns
-            $cfg = $cfg -replace 'PasswordComplexity\s*=\s*1','PasswordComplexity = 0'
-            $cfg = $cfg -replace 'PasswordComplexity\s*=\s*True','PasswordComplexity = 0'
-            $cfg = $cfg -replace 'MinimumPasswordLength\s*=\s*\d+',"MinimumPasswordLength = 0"
-            $cfg = $cfg -replace 'PasswordHistorySize\s*=\s*\d+',"PasswordHistorySize = 0"
-
-            # Some exports use verbose English lines; try replacing common phrase too (best-effort)
-            $cfg = $cfg -replace 'Accounts: .*Limit local account use of blank passwords to console logon only = 1','Accounts: Limit local account use of blank passwords to console logon only = 0'
-
-            $cfg | Set-Content C:\secpol.cfg -Force
-
-            secedit /configure /db C:\Windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY | Out-Null
-            gpupdate /force | Out-Null
-            Start-Sleep -Seconds 5
-
-            Write-Host "Done: attempted to update local security policy (may be restricted on hosted runners)."
-          } catch {
-            Write-Host "Warning: disabling password complexity failed or partially applied: $_"
+          # Create or update user Vayvy (username required by you)
+          if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
+            New-LocalUser -Name "Vayvy" -Password $securePass -AccountNeverExpires
+            Write-Host "✅ User 'Vayvy' created." -ForegroundColor Yellow
+          } else {
+            Set-LocalUser -Name "Vayvy" -Password $securePass
+            Write-Host "✅ User 'Vayvy' updated." -ForegroundColor Yellow
           }
 
-      - name: 👤 Create or update RDP user Vayvy
-        shell: pwsh
-        env:
-          GITHUB_RUN_ID: ${{ github.run_id }}
-        run: |
-          Write-Host "Generating random 3-digit numeric password (allows leading zeros)..."
-          $digits = 0..9
-          $password = -join (Get-Random -InputObject $digits -Count 3)
-          Write-Host "Generated PIN: $password"
+          Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue
 
-          # Try to create/update using New-LocalUser (preferred)
-          try {
-            $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-            if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
-              New-LocalUser -Name "Vayvy" -Password $securePass -AccountNeverExpires -Description "Created by GalaxyRDP workflow" -ErrorAction Stop
-              Write-Host "✅ New-LocalUser created."
-            } else {
-              Set-LocalUser -Name "Vayvy" -Password $securePass -ErrorAction Stop
-              Write-Host "✅ Existing user updated via Set-LocalUser."
-            }
-
-            # Ensure group membership
-            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue
-            Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue
-
-            $created = $true
-          } catch {
-            Write-Host "⚠️ New-LocalUser/Set-LocalUser failed: $($_.Exception.Message)"
-            $created = $false
-          }
-
-          # Fallback: try 'net user' (sometimes bypasses stricter API checks)
-          if (-not $created) {
-            Write-Host "Attempting fallback: net user create/update..."
-            try {
-              # If user exists, update password; else create then add to groups
-              $exists = (net user Vayvy 2>$null) -ne $null
-              if ($exists) {
-                net user Vayvy $password
-                Write-Host "✅ net user: password set for existing user."
-              } else {
-                net user Vayvy $password /add
-                net localgroup "Remote Desktop Users" Vayvy /add 2>$null
-                net localgroup "Administrators" Vayvy /add 2>$null
-                Write-Host "✅ net user: user created and added to groups."
-              }
-              $created = $true
-            } catch {
-              Write-Host "❌ net user fallback failed: $_"
-              $created = $false
-            }
-          }
-
-          if (-not $created) {
-            Write-Host "::error ::Failed to create or update user 'Vayvy' with 3-digit password. Policy restrictions may prevent 3-digit passwords on this runner."
-            exit 1
-          }
-
-          # Export creds for later steps and notifications
+          # Export creds to env for downstream steps and Discord
           echo "RDP_USER=Vayvy" >> $env:GITHUB_ENV
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
 
-          Write-Host "✅ RDP user ready: Vayvy | PIN: $password"
-
+          Write-Host "🎉 RDP user ready: Vayvy | Password: $password" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       # =================================================================
       # STEP: Generate Custom Text Wallpaper (Vayvy feature — preserved)
       # =================================================================
