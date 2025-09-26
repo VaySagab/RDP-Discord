@@ -356,6 +356,9 @@ jobs:
       # =================================================================
       # Start Notification to Discord (Detailed)
       # =================================================================
+      # =================================================================
+      # Discord Notification: Start
+      # =================================================================
       - name: 🔔 Discord Notification (Start)
         shell: pwsh
         run: |
@@ -366,28 +369,38 @@ jobs:
 
           $rdpUser = $env:RDP_USER
           $rdpPass = $env:RDP_PASS
-          $actor = $env:GITHUB_ACTOR
-          $runId = $env:GITHUB_RUN_ID
-          $repo = $env:GITHUB_REPOSITORY
+          $actor   = $env:GITHUB_ACTOR
+          $runId   = $env:GITHUB_RUN_ID
+          $repo    = $env:GITHUB_REPOSITORY
 
-          $msg = @"
-          📡 **GalaxyRDP Ultra — Session Started**
-          Repository : $repo
-          Run ID     : $runId
-          Actor      : $actor
-          RDP User   : $rdpUser
-          RDP Pass   : $rdpPass
-          Note       : MuMu / Roblox / AutoClicker installs are skipped. Install them manually.
-          "@
+          try { $publicIp = (Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 10) } catch { $publicIp = "Unknown" }
+          try { $tailscaleIp = (tailscale ip -4 | Select-Object -First 1) } catch { $tailscaleIp = "Not Connected" }
 
-          $payload = @{ content = $msg } | ConvertTo-Json -Compress
+          $embed = @{
+            title = "🚀 GalaxyRDP Ultra — Session Created"
+            description = "Your RDP session is live and ready to use. 🌌"
+            color = 11730954
+            fields = @(
+              @{ name = "👤 GitHub User";   value = "`$actor`";   inline = $true },
+              @{ name = "🖥️ RDP User";     value = "`$rdpUser`"; inline = $true },
+              @{ name = "🔑 RDP Password"; value = "`$rdpPass`"; inline = $true },
+              @{ name = "🌍 Public IP";    value = "`$publicIp`"; inline = $true },
+              @{ name = "🔗 Tailscale IP"; value = "`$tailscaleIp`"; inline = $true },
+              @{ name = "📦 Repository";   value = "`$repo`"; inline = $false },
+              @{ name = "⚙️ Run ID";       value = "`$runId`"; inline = $false }
+            )
+            footer = @{
+              text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+            }
+          }
+
+          $payload = @{ embeds = @($embed) } | ConvertTo-Json -Depth 10 -Compress
           try {
             Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType "application/json" -Body $payload -ErrorAction Stop
             Write-Host "✅ Start notification sent to Discord." -ForegroundColor Yellow
           } catch {
             Write-Host "⚠️ Failed to send start notification: $_" -ForegroundColor Yellow
           }
-
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
@@ -397,64 +410,36 @@ jobs:
       # - Polls every 15 minutes and posts to Discord if CPU or RAM thresholds hit
       # - Keeps the runner active for the requested period
       # =================================================================
-      - name: ⏳ Keep Alive 12h + Resource Auto Alert
+      # =================================================================
+      # Step 11: Keep Alive 12h + Resource Auto Alert
+      # =================================================================
+      - name: ⏳ Keep Alive 12h + Resource Auto Alert (STEP 11)
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "⏳ [KEEP-ALIVE] Starting keep-alive loop with resource alerts" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "⏳ [STEP 11] Starting keep-alive loop (12h) in background with resource alerts" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          function Send-Discord($message) {
-            if (-not $env:DISCORD_WEBHOOK) { Write-Host "⚠️ No DISCORD_WEBHOOK configured."; return }
-            $payload = @{ content = $message } | ConvertTo-Json -Compress
-            try { Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType "application/json" -Body $payload -ErrorAction Stop } catch { Write-Host "⚠️ Send-Discord failed: $_" -ForegroundColor Yellow }
-          }
-
-          # Configuration
-          $keepMinutes = 720
-          if ($env:KEEP_ALIVE_MINUTES) { $parsed = 0; if ([int]::TryParse($env:KEEP_ALIVE_MINUTES,[ref]$parsed)) { $keepMinutes = $parsed } }
-          $endTime = (Get-Date).AddMinutes($keepMinutes)
-          $pollSeconds = 900   # 15 minutes
-          $cpuThreshold = 90
-          $memThreshold = 85
-
-          Send-Discord "⏳ **Keep-Alive Started** — Running for $keepMinutes minute(s). Run: $($env:GITHUB_RUN_ID) | Repo: $($env:GITHUB_REPOSITORY) | Actor: $($env:GITHUB_ACTOR)"
-
-          while ((Get-Date) -lt $endTime) {
-            try {
-              # CPU (average across processors)
-              $cpu = Get-CimInstance -ClassName Win32_Processor | Select-Object -ExpandProperty LoadPercentage -ErrorAction SilentlyContinue
-              if ($cpu -is [array]) { $cpuVal = [math]::Round(($cpu | Measure-Object -Average).Average,2) } else { $cpuVal = $cpu }
-
-              # Memory percentage used
-              $memVal = Get-CimInstance -ClassName Win32_OperatingSystem | ForEach-Object { [math]::Round((($_.TotalVisibleMemorySize - $_.FreePhysicalMemory)/$_.TotalVisibleMemorySize)*100,2) }
-
-              # Disk free on C
-              $cFree = (Get-PSDrive -Name C -ErrorAction SilentlyContinue).Free
-
-              Write-Host "[Keep-Alive] Now: $(Get-Date -Format o) | CPU: $cpuVal% | RAM: $memVal% | C Free: $cFree" -ForegroundColor Cyan
-
-              # Send alert if above thresholds
-              if ($cpuVal -gt $cpuThreshold -or $memVal -gt $memThreshold) {
-                $msg = "⚠️ **Resource Alert** — CPU=$cpuVal% RAM=$memVal% (Thresholds: CPU>$cpuThreshold%, RAM>$memThreshold%) | Run: $($env:GITHUB_RUN_ID) | Repo: $($env:GITHUB_REPOSITORY)"
-                Send-Discord $msg
+          $script = {
+            for ($i=0; $i -lt 720; $i++) { # 720 menit = 12 jam
+              try {
+                $cpu = (Get-Counter '\Processor(_Total)\% Processor Time').CounterSamples.CookedValue
+                $ram = (Get-Counter '\Memory\% Committed Bytes In Use').CounterSamples.CookedValue
+                $disk = (Get-PSDrive C).Free
+                Write-Output "[Keep-Alive] $(Get-Date -Format o) | CPU: {0:N2}%% | RAM: {1:N2}%% | C Free: $disk" -f $cpu, $ram
+              } catch {
+                Write-Output "[Keep-Alive] ⚠️ Resource check failed: $_"
               }
-
-            } catch {
-              Write-Host "⚠️ Keep-Alive monitoring failed for iteration: $_" -ForegroundColor Yellow
+              Start-Sleep -Seconds 60
             }
-
-            # Sleep until next poll or until end time
-            $remaining = ($endTime - (Get-Date)).TotalSeconds
-            if ($remaining -le 0) { break }
-            $sleep = [math]::Min($pollSeconds, [math]::Max(1, [math]::Floor($remaining)))
-            Start-Sleep -Seconds $sleep
           }
 
-          Send-Discord "✅ **Keep-Alive Finished** — Run $($env:GITHUB_RUN_ID) has completed $keepMinutes minutes of keep-alive."
+          # Run loop in background (non-blocking)
+          Start-Job -ScriptBlock $script | Out-Null
 
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "✅ Keep-alive background job started. Workflow will continue." -ForegroundColor Yellow
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
       # =================================================================
@@ -527,9 +512,9 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Success Notification (on success)
+      # Discord Notification: Success
       # =================================================================
-      - name: ✅ Notify Discord on Success
+      - name: ✅ Discord Notification (Success)
         if: success()
         shell: pwsh
         run: |
@@ -538,71 +523,68 @@ jobs:
           Write-Host "✅ [NOTIFY] Sending Discord success notification" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          $runId = $env:GITHUB_RUN_ID
           $actor = $env:GITHUB_ACTOR
-          $repo = $env:GITHUB_REPOSITORY
-          $msg = @"
-          ✅ **GalaxyRDP Ultra — Workflow Succeeded**
-          Repository : $repo
-          Run ID     : $runId
-          Actor      : $actor
-          Note       : MuMu / Roblox / AutoClicker are not installed. Install manually.
-          "@
-          $payload = @{ content = $msg } | ConvertTo-Json -Compress
+          $repo  = $env:GITHUB_REPOSITORY
+          $runId = $env:GITHUB_RUN_ID
+
+          $embed = @{
+            title = "✅ GalaxyRDP Ultra — Session Finished (Success)"
+            description = "The workflow has completed successfully. 🎉"
+            color = 5763719
+            fields = @(
+              @{ name = "👤 GitHub User"; value = "`$actor`"; inline = $true },
+              @{ name = "📦 Repository"; value = "`$repo`"; inline = $true },
+              @{ name = "⚙️ Run ID";     value = "`$runId`"; inline = $true }
+            )
+            footer = @{
+              text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+            }
+          }
+
+          $payload = @{ embeds = @($embed) } | ConvertTo-Json -Depth 10 -Compress
           try {
             Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType "application/json" -Body $payload -ErrorAction Stop
             Write-Host "✅ Success notification sent to Discord." -ForegroundColor Yellow
           } catch {
             Write-Host "⚠️ Failed to send success notification: $_" -ForegroundColor Yellow
           }
-
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # =================================================================
-      # Failure Notification (on failure)
-      # =================================================================
-      - name: ❌ Notify Discord on Failure
+      - name: ❌ Discord Notification (Failure)
         if: failure()
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "❌ [NOTIFY] Workflow failed - sending Discord alert" -ForegroundColor Red
+          Write-Host "❌ [NOTIFY] Sending Discord failure notification" -ForegroundColor Red
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          $runId = $env:GITHUB_RUN_ID
           $actor = $env:GITHUB_ACTOR
-          $job = "${{ github.job }}"
-          $repo = $env:GITHUB_REPOSITORY
-          $url = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          # Read monitoring report if present
-          $reportFile = "$env:TEMP\galaxyrdp_monitor_$($env:GITHUB_RUN_ID).txt"
-          $reportText = "No report file."
-          if (Test-Path $reportFile) { $reportText = Get-Content -Path $reportFile -Raw }
+          $repo  = $env:GITHUB_REPOSITORY
+          $runId = $env:GITHUB_RUN_ID
 
           $embed = @{
-            content = "🚨 **GalaxyRDP Ultra — Workflow FAILED**"
-            embeds = @(
-              @{
-                title = "Failure Details"
-                description = "Job: $job | Run: $runId | Actor: $actor | Repo: $repo"
-                fields = @(
-                  @{ name = "Run URL"; value = $url; inline = $false }
-                  @{ name = "Monitoring Snapshot"; value = ($reportText.Substring(0,[math]::Min($reportText.Length,1500))); inline = $false }
-                )
-              }
+            title = "❌ GalaxyRDP Ultra — Session Failed"
+            description = "The workflow has failed. Please check logs. ⚠️"
+            color = 15548997
+            fields = @(
+              @{ name = "👤 GitHub User"; value = "`$actor`"; inline = $true },
+              @{ name = "📦 Repository"; value = "`$repo`"; inline = $true },
+              @{ name = "⚙️ Run ID";     value = "`$runId`"; inline = $true }
             )
-          } | ConvertTo-Json -Depth 6
+            footer = @{
+              text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+            }
+          }
 
+          $payload = @{ embeds = @($embed) } | ConvertTo-Json -Depth 10 -Compress
           try {
-            Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType "application/json" -Body $embed -ErrorAction Stop
-            Write-Host "✅ Failure notification sent to Discord." -ForegroundColor Yellow
+            Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType "application/json" -Body $payload -ErrorAction Stop
+            Write-Host "❌ Failure notification sent to Discord." -ForegroundColor Yellow
           } catch {
             Write-Host "⚠️ Failed to send failure notification: $_" -ForegroundColor Yellow
           }
-
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
