@@ -58,12 +58,12 @@ jobs:
       # =================================================================
       # Step 1 - Enable RDP (safe)
       # =================================================================
-      - name: ⚙️ Enable RDP (STEP 1)
+      - name: ⚙️ Enable RDP
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "⚙️ [STEP 1] Enabling Remote Desktop Protocol (RDP)" -ForegroundColor Green
+          Write-Host "⚙️ Enabling Remote Desktop Protocol (RDP)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -ErrorAction Stop
@@ -79,12 +79,12 @@ jobs:
       # =================================================================
       # Step 2 - Create RDP User (Vayvy)
       # =================================================================
-      - name: 👤 Create RDP user (Vayvy) (STEP 2)
+      - name: 👤 Create RDP user (Vayvy)
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "👤 [STEP 2] Creating RDP User 'Vayvy' (random password + fallback)" -ForegroundColor Green
+          Write-Host "👤 Creating RDP User 'Vayvy' (random password + fallback)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           Add-Type -AssemblyName System.Security
@@ -142,12 +142,12 @@ jobs:
       # =================================================================
       # Step 6: Generate Custom Text Wallpaper
       # =================================================================
-      - name: 🖼️ Generate Custom Text Wallpaper (STEP 6)
+      - name: 🖼️ Generate Custom Text Wallpaper 
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🖼️ [STEP 6] Generating Custom Wallpaper" -ForegroundColor Green
+          Write-Host "🖼️ Generating Custom Wallpaper" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             Add-Type -AssemblyName System.Drawing
@@ -198,12 +198,12 @@ jobs:
       # =================================================================
       # Step 3 - Tailscale install (kept minimal)
       # =================================================================
-      - name: 🌐 Install Tailscale (STEP 3)
+      - name: 🌐 Install Tailscale
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🌐 [STEP 3] Installing Tailscale VPN (with retries, best-effort)" -ForegroundColor Green
+          Write-Host "🌐 Installing Tailscale VPN (with retries, best-effort)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $installer = "$env:TEMP\tailscale.msi"
@@ -230,14 +230,14 @@ jobs:
       # =================================================================
       # Step 4 - Connect to Tailscale (optional; uses secret if present)
       # =================================================================
-      - name: 🔗 Connect to Tailscale (STEP 4)
+      - name: 🔗 Connect to Tailscale
         shell: pwsh
         env:
           VAYVY_TAILSCALE_AUTHKEY: ${{ secrets.VAYVY_TAILSCALE_AUTHKEY }}
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 [STEP 4] Connecting to Tailscale Network (best-effort)" -ForegroundColor Green
+          Write-Host "🔗 Connecting to Tailscale Network (best-effort)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
@@ -284,12 +284,12 @@ jobs:
       # =================================================================
       # Step 5: Optimize Windows
       # =================================================================
-      - name: ⚡ Optimize Windows for RDP (STEP 5)
+      - name: ⚡ Optimize Windows for RDP
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "⚡ [STEP 5] Optimizing Windows (Safe Tweaks)" -ForegroundColor Green
+          Write-Host "⚡ Optimizing Windows (Safe Tweaks)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             # Visual FX → Best Performance
@@ -326,12 +326,12 @@ jobs:
       # =================================================================
       # Step 6 - Network & Resource snapshot
       # =================================================================
-      - name: 📡 Check Latency & Health (STEP 6)
+      - name: 📡 Check Latency & Health
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "📡 [STEP 6] Network latency & basic health snapshot" -ForegroundColor Green
+          Write-Host "📡 Network latency & basic health snapshot" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           try {
@@ -353,9 +353,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # =================================================================
-      # Start Notification to Discord (Detailed)
-      # =================================================================
       # =================================================================
       # Discord Notification: Start
       # =================================================================
@@ -381,13 +378,13 @@ jobs:
             description = "Your RDP session is live and ready to use. 🌌"
             color = 11730954
             fields = @(
-              @{ name = "👤 GitHub User";   value = "`$actor`";   inline = $true },
-              @{ name = "🖥️ RDP User";     value = "`$rdpUser`"; inline = $true },
-              @{ name = "🔑 RDP Password"; value = "`$rdpPass`"; inline = $true },
-              @{ name = "🌍 Public IP";    value = "`$publicIp`"; inline = $true },
-              @{ name = "🔗 Tailscale IP"; value = "`$tailscaleIp`"; inline = $true },
-              @{ name = "📦 Repository";   value = "`$repo`"; inline = $false },
-              @{ name = "⚙️ Run ID";       value = "`$runId`"; inline = $false }
+              @{ name = "👤 GitHub User";   value = "$actor";   inline = $true },
+              @{ name = "🖥️ RDP User";     value = "$rdpUser"; inline = $true },
+              @{ name = "🔑 RDP Password"; value = "$rdpPass"; inline = $true },
+              @{ name = "🌍 Public IP";    value = "$publicIp"; inline = $true },
+              @{ name = "🔗 Tailscale IP"; value = "$tailscaleIp"; inline = $true },
+              @{ name = "📦 Repository";   value = "$repo"; inline = $false },
+              @{ name = "⚙️ Run ID";       value = "$runId"; inline = $false }
             )
             footer = @{
               text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
@@ -514,6 +511,9 @@ jobs:
       # =================================================================
       # Discord Notification: Success
       # =================================================================
+      # =================================================================
+      # Discord Notification: Success
+      # =================================================================
       - name: ✅ Discord Notification (Success)
         if: success()
         shell: pwsh
@@ -532,9 +532,9 @@ jobs:
             description = "The workflow has completed successfully. 🎉"
             color = 5763719
             fields = @(
-              @{ name = "👤 GitHub User"; value = "`$actor`"; inline = $true },
-              @{ name = "📦 Repository"; value = "`$repo`"; inline = $true },
-              @{ name = "⚙️ Run ID";     value = "`$runId`"; inline = $true }
+              @{ name = "👤 GitHub User"; value = "$actor"; inline = $true },
+              @{ name = "📦 Repository"; value = "$repo"; inline = $true },
+              @{ name = "⚙️ Run ID";     value = "$runId"; inline = $true }
             )
             footer = @{
               text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
@@ -551,6 +551,9 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
+      # =================================================================
+      # Discord Notification: Failure
+      # =================================================================
       - name: ❌ Discord Notification (Failure)
         if: failure()
         shell: pwsh
@@ -569,9 +572,9 @@ jobs:
             description = "The workflow has failed. Please check logs. ⚠️"
             color = 15548997
             fields = @(
-              @{ name = "👤 GitHub User"; value = "`$actor`"; inline = $true },
-              @{ name = "📦 Repository"; value = "`$repo`"; inline = $true },
-              @{ name = "⚙️ Run ID";     value = "`$runId`"; inline = $true }
+              @{ name = "👤 GitHub User"; value = "$actor"; inline = $true },
+              @{ name = "📦 Repository"; value = "$repo"; inline = $true },
+              @{ name = "⚙️ Run ID";     value = "$runId"; inline = $true }
             )
             footer = @{
               text = "RDP by VayVy | IG : Vay.Test • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
