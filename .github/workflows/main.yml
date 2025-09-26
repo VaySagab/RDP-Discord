@@ -1,37 +1,38 @@
-name: "🌌 GalaxyRDP Ultra by VayVy — Cleaned"
+name: Vayvy GalaxyRDP Ultra — Optimized
 
 on:
   workflow_dispatch:
 
+env:
+  # ---------------------------
+  # CONFIG (edit here or use secrets)
+  # ---------------------------
+  DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
+  # Prefer put TAILSCALE_AUTH_KEY into repo secrets: secrets.TAILSCALE_AUTH_KEY
+  USE_INLINE_TAILSCALE_KEY: "false"
+  INLINE_TAILSCALE_AUTH_KEY: ""
+  TAILSCALE_VERSION: "1.82.0"
+
+  # RDP creds (you can override here or switch to secrets)
+  RDP_USER: "Vayvy"
+  RDP_PASSWORD: "Vay2025!"
+
+  # Keepalive / misc
+  KEEP_ALIVE_MINUTES: "720"
+  KEEP_ALIVE_INTERVAL_SECS: "300"
+  ARTIFACT_DIR: "vayvy-artifacts"
+  WALLPAPER_WIDTH: "1920"
+  WALLPAPER_HEIGHT: "1080"
+  WALLPAPER_PATH: "$env:PUBLIC\\Vayvy_galaxyrdp_wallpaper.jpg"
+  RDP_PORT: "3389"
+
 jobs:
   vayvy-rdp:
     runs-on: windows-latest
-    timeout-minutes: 720 # 12 jam
-
-    env:
-      # ---------------------------
-      # EDIT THESE (strongly recommended to use GitHub Secrets)
-      # ---------------------------
-      DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
-      USE_INLINE_TAILSCALE_KEY: "false"
-      INLINE_TAILSCALE_AUTH_KEY: ""
-
-      # Owner / user & password (consider moving to secrets)
-      RDP_USER: "Vayvy"
-      RDP_PASSWORD: "Vay2025!"
-
-      # Cosmetic / keepalive / artifacts
-      KEEP_ALIVE_MINUTES: "720"
-      KEEP_ALIVE_INTERVAL_SECS: "300"
-      ARTIFACT_DIR: "galaxyrdp-artifacts"
-      WALLPAPER_WIDTH: "1920"
-      WALLPAPER_HEIGHT: "1080"
-      WALLPAPER_PATH: "$env:PUBLIC\\Vayvy_galaxyrdp_wallpaper.bmp"
-      TAILSCALE_VERSION: "1.82.0"
-      RDP_PORT: "3389"
+    timeout-minutes: 720
 
     steps:
-      - name: "📥 Checkout (optional assets)"
+      - name: "📥 Checkout (optional)"
         uses: actions/checkout@v4
 
       - name: "🧰 Prepare artifact folder"
@@ -41,76 +42,116 @@ jobs:
           if (-not (Test-Path $d)) { New-Item -Path $d -ItemType Directory | Out-Null }
           Write-Host "Artifact dir: $d"
 
-      - name: "✨ Intro Banner — GalaxyRDP Ultra"
+      - name: "✨ Intro banner"
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host ("═" * 80) -ForegroundColor Cyan
-          Write-Host "🌌 GalaxyRDP Ultra by VayVy — Professional Provisioning & Keep-Alive" -ForegroundColor Green
-          Write-Host "Repository : $env:GITHUB_REPOSITORY" -ForegroundColor Cyan
-          Write-Host "Run ID     : $env:GITHUB_RUN_ID" -ForegroundColor Cyan
-          Write-Host "Actor      : $env:GITHUB_ACTOR" -ForegroundColor Cyan
-          Write-Host "Start Time : $(Get-Date -Format o)" -ForegroundColor Cyan
-          Write-Host ("═" * 80) -ForegroundColor Cyan
+          Write-Host ("=" * 72) -ForegroundColor Cyan
+          Write-Host "🌌 Vayvy GalaxyRDP Ultra — Optimized" -ForegroundColor Green
+          Write-Host "Run ID: $env:GITHUB_RUN_ID  •  Actor: $env:GITHUB_ACTOR" -ForegroundColor Cyan
+          Write-Host ("=" * 72) -ForegroundColor Cyan
           Write-Host ""
 
-      - name: "🛡️ Ensure Admin Privileges (best-effort check)"
+      - name: "⚙️ Configure core RDP settings (enable, NLA off, firewall)"
         shell: pwsh
         run: |
           try {
-            $isAdmin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-            if (-not $isAdmin) {
-              Write-Host "⚠️ Warning: Runner may not be elevated. Some operations may fail." -ForegroundColor Yellow
-            } else {
-              Write-Host "✅ Running with administrative privileges." -ForegroundColor Green
-            }
-          } catch {
-            Write-Host "⚠️ Failed to determine elevation: $_" -ForegroundColor Yellow
-          }
-
-      - name: "⚙️ Configure core RDP settings (enable, NLA opt, firewall)"
-        shell: pwsh
-        run: |
-          $log="$env:ARTIFACT_DIR\01-config-rdp.log"
-          try {
-            Write-Host "----- RDP CONFIGURATION -----" -ForegroundColor Cyan
-
-            # Enable RDP (registry)
+            Write-Host "----- RDP CONFIG -----"
+            # Enable RDP
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
-            Write-Host "🔓 RDP enabled (fDenyTSConnections=0)" -ForegroundColor Green
 
-            # Turn off NLA for broader compatibility (optional)
+            # Turn off NLA and prefer SecurityLayer 0 for compatibility (adjust if you need NLA)
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
-            Write-Host "🔧 RDP WinStation params set (UserAuthentication=0, SecurityLayer=0)" -ForegroundColor Green
 
-            # Ensure firewall rule exists
-            $ruleName = "GalaxyRDP-Allowed-3389"
+            # Firewall rule (idempotent)
+            $ruleName = "Vayvy-GalaxyRDP-3389"
             & netsh advfirewall firewall delete rule name="$ruleName" 2>$null
             netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=$env:RDP_PORT profile=any | Out-Null
-            Write-Host "🛡️ Firewall rule added: $ruleName on port $env:RDP_PORT" -ForegroundColor Green
 
-            # Restart TermService to apply (best-effort)
-            try { Restart-Service -Name TermService -Force -ErrorAction Stop; Start-Sleep -Seconds 3; Write-Host "🔁 TermService restarted" -ForegroundColor Green } catch { Write-Host "⚠️ Could not restart TermService (may require elevation)" -ForegroundColor Yellow }
+            # Ensure TermService running
+            try {
+              Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
+              if ((Get-Service -Name TermService).Status -ne 'Running') {
+                Start-Service -Name TermService -ErrorAction Stop
+              }
+            } catch {
+              Write-Host "⚠️ Could not start/restart TermService: $_" -ForegroundColor Yellow
+            }
 
-            "OK" | Out-File -FilePath $log -Append
+            Write-Host "✅ RDP enabled and firewall rule created (port $env:RDP_PORT)."
           } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
-            Write-Host "❌ RDP configuration failed: $($_.Exception.Message)" -ForegroundColor Red
-            exit 1
+            Write-Host "❌ RDP config failed: $($_.Exception.Message)" -ForegroundColor Red
+            throw
+          }
+
+      - name: "🧹 Optimize system: remove non-essential apps (make RDP snappier)"
+        shell: pwsh
+        run: |
+          Write-Host "----- CLEANUP: uninstall common bloat / store apps -----"
+          try {
+            # WARNING: This removes common built-in UWP apps for all users on the runner.
+            # Adjust the list as needed—do NOT remove things required by your environment.
+            $toRemove = @(
+              "Microsoft.XboxGamingOverlay",
+              "Microsoft.XboxApp",
+              "Microsoft.3DBuilder",
+              "Microsoft.Getstarted",
+              "Microsoft.MicrosoftSolitaireCollection",
+              "Microsoft.ZuneMusic",
+              "Microsoft.ZuneVideo",
+              "Microsoft.MicrosoftOfficeHub",
+              "Microsoft.MobilityCenter" # example; unlikely installed, harmless
+            )
+
+            foreach ($name in $toRemove) {
+              try {
+                Write-Host "Attempting to remove package pattern: $name"
+                Get-AppxPackage -AllUsers -Name "$name" -ErrorAction SilentlyContinue |
+                  ForEach-Object { Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue }
+                Get-AppxProvisionedPackage -Online | Where-Object DisplayName -Match $name | ForEach-Object {
+                  $pkgName = $_.PackageName
+                  Remove-AppxProvisionedPackage -Online -PackageName $pkgName -ErrorAction SilentlyContinue
+                }
+              } catch {
+                Write-Host "⚠️ Could not remove $name: $($_.Exception.Message)" -ForegroundColor Yellow
+              }
+            }
+
+            # Remove OneDrive if installed (common background process)
+            try {
+              $onedrive = "$env:WinDir\System32\OneDriveSetup.exe"
+              if (Test-Path $onedrive) {
+                Start-Process -FilePath $onedrive -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction SilentlyContinue
+                Write-Host "✅ OneDrive uninstalled (if present)."
+              }
+            } catch { Write-Host "⚠️ OneDrive uninstall skipped/failed: $_" -ForegroundColor Yellow }
+
+            # Disable telemetry services that are safe to turn off on ephemeral runner
+            try {
+              $svc = "DiagTrack" # Connected User Experiences and Telemetry
+              if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
+                Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
+                Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+                Write-Host "⚡ Disabled telemetry service: $svc"
+              }
+            } catch { }
+
+            Write-Host "✅ Cleanup (best-effort) completed."
+          } catch {
+            Write-Host "⚠️ Cleanup step failed: $($_.Exception.Message)" -ForegroundColor Yellow
           }
 
       - name: "👤 Create local RDP user (Vayvy) — password fixed"
         shell: pwsh
         run: |
-          $log="$env:ARTIFACT_DIR\02-create-user.log"
           try {
-            Write-Host "----- CREATE RDP USER -----" -ForegroundColor Magenta
+            Write-Host "----- CREATE RDP USER -----"
             $user = $env:RDP_USER
             $pass = $env:RDP_PASSWORD
 
             if (Get-LocalUser -Name $user -ErrorAction SilentlyContinue) {
-              Write-Host "♻️ Removing existing user $user" -ForegroundColor Yellow
+              Write-Host "♻️ User $user exists — removing & recreating for idempotency."
               Remove-LocalUser -Name $user -ErrorAction SilentlyContinue
             }
 
@@ -120,18 +161,17 @@ jobs:
             Add-LocalGroupMember -Group "Administrators" -Member $user -ErrorAction SilentlyContinue
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user -ErrorAction SilentlyContinue
 
+            # Save creds to artifact (user MUST delete after download)
             $credFile = "$env:ARTIFACT_DIR\creds.txt"
-            "USER:$user`nPASSWORD:$pass`nNOTE: Remove this file after secure retrieval." | Out-File -FilePath $credFile -Encoding UTF8
+            "USER:$user`nPASSWORD:$pass`nNOTE: remove after retrieval" | Out-File -FilePath $credFile -Encoding UTF8
 
-            Write-Host "🔐 User $user created and added to groups; credentials stored in artifact ($credFile)." -ForegroundColor Green
-            "OK" | Out-File -FilePath $log -Append
+            Write-Host "🔐 User $user created (credentials saved to artifact)."
           } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
             Write-Host "❌ User creation failed: $($_.Exception.Message)" -ForegroundColor Red
-            exit 1
+            throw
           }
 
-      - name: 🖼️ Generate Custom Text Wallpaper 
+      - name: "🖼️ Generate Custom Text Wallpaper (Vayvy watermark & footer)"
         shell: pwsh
         run: |
           Write-Host ""
@@ -140,14 +180,14 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             Add-Type -AssemblyName System.Drawing
-            $width = 1920; $height = 1080
+            $width = [int]$env:WALLPAPER_WIDTH; $height = [int]$env:WALLPAPER_HEIGHT
             $bmp = New-Object System.Drawing.Bitmap $width, $height
             $g = [System.Drawing.Graphics]::FromImage($bmp)
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
             $g.Clear([System.Drawing.Color]::Black)
 
             # Main text in center
-            $mainText = "🌌 GalaxyRDP Ultra by VayVy 🚀"
+            $mainText = "🌌 GalaxyRDP Ultra by Vayvy 🚀"
             $fontMain = New-Object System.Drawing.Font("Consolas", 72, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
             $brushMain = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Lime)
             $size = $g.MeasureString($mainText, $fontMain)
@@ -177,31 +217,30 @@ jobs:
             Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $outPath
             rundll32.exe user32.dll, UpdatePerUserSystemParameters
 
-            Write-Host "✅ Wallpaper applied successfully (with dynamic watermark & footer)." -ForegroundColor Yellow
+            Write-Host "✅ Wallpaper applied successfully (with dynamic watermark & footer)."
           } catch {
-            Write-Host "⚠️ Wallpaper generation failed: $_" -ForegroundColor Red
+            Write-Host "⚠️ Wallpaper generation failed: $_" -ForegroundColor Yellow
           }
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
-          
-      - name: "🌐 Install Tailscale (versioned, idempotent)"
+
+      - name: "🌐 Install/Ensure Tailscale (idempotent)"
         shell: pwsh
         run: |
           $log="$env:ARTIFACT_DIR\04-install-tailscale.log"
           try {
-            Write-Host "----- INSTALL TAILSCALE -----" -ForegroundColor Cyan
             $tsExe = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
             if (Test-Path $tsExe) {
-              Write-Host "✅ Tailscale already installed at $tsExe" -ForegroundColor Green
+              Write-Host "✅ Tailscale already installed."
             } else {
               $ver = $env:TAILSCALE_VERSION
               $msi = Join-Path $env:TEMP "tailscale-$ver.msi"
               $url = "https://pkgs.tailscale.com/stable/tailscale-setup-$ver-amd64.msi"
-              Write-Host "⬇️ Downloading $url ..." -ForegroundColor Cyan
+              Write-Host "⬇️ Downloading $url ..."
               Invoke-WebRequest -Uri $url -OutFile $msi -UseBasicParsing -ErrorAction Stop
               Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/quiet", "/norestart" -Wait -ErrorAction Stop
               Remove-Item $msi -Force -ErrorAction SilentlyContinue
-              Write-Host "✅ Tailscale installed." -ForegroundColor Green
+              Write-Host "✅ Tailscale installed."
             }
             "OK" | Out-File -FilePath $log -Append
           } catch {
@@ -217,83 +256,40 @@ jobs:
         run: |
           $log = "$env:ARTIFACT_DIR\05-tailscale-up.log"
           try {
-            Write-Host "----- TAILSCALE UP -----" -ForegroundColor Cyan
+            Write-Host "----- TAILSCALE UP -----"
             $tsExe = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
             if (-not (Test-Path $tsExe)) { $tsExe = Join-Path ($env:ProgramFiles + " (x86)") "Tailscale\tailscale.exe" }
             if (-not (Test-Path $tsExe)) { throw "tailscale.exe not found" }
 
-            # Build hostname safely
-            $hostname = "gh-runner-$($env:GITHUB_RUN_ID)"
+            $hostname = "vayvy-runner-$($env:GITHUB_RUN_ID)"
 
-            $auth = $env:TAILSCALE_AUTH_KEY
-            if ($auth -and $auth -ne "") {
-              Write-Host "Using secret-provided TAILSCALE_AUTH_KEY" -ForegroundColor Cyan
-              & $tsExe up --authkey=$auth --hostname=$hostname --accept-routes --accept-dns=false --timeout=30s 2>&1 | Tee-Object -FilePath $log -Append
-            } elseif ($env:USE_INLINE_TAILSCALE_KEY -eq "true" -and $env:INLINE_TAILSCALE_AUTH_KEY) {
-              Write-Host "Using inline tailscale key (INSECURE) as requested" -ForegroundColor Yellow
-              & $tsExe up --authkey=$env:INLINE_TAILSCALE_AUTH_KEY --hostname=$hostname --accept-routes --accept-dns=false --timeout=30s 2>&1 | Tee-Object -FilePath $log -Append
+            if ($env:USE_INLINE_TAILSCALE_KEY -eq "true" -and $env:INLINE_TAILSCALE_AUTH_KEY) {
+              & $tsExe up --authkey=$env:INLINE_TAILSCALE_AUTH_KEY --hostname=$hostname 2>&1 | Tee-Object -FilePath $log -Append
             } else {
-              Write-Host "⚠️ No Tailscale auth key provided. Attempting up without key (will likely fail)." -ForegroundColor Yellow
-              & $tsExe up --hostname=$hostname --timeout=30s 2>&1 | Tee-Object -FilePath $log -Append
+              & $tsExe up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=$hostname 2>&1 | Tee-Object -FilePath $log -Append
             }
 
-            # Short wait for service to settle
             Start-Sleep -Seconds 8
 
-            # Wait for Tailscale IP assignment (retries)
-            $tailIP = $null
-            $retries = 0
+            $tailIP = $null; $retries = 0
             while (-not $tailIP -and $retries -lt 12) {
               $raw = & $tsExe ip -4 2>$null
-              if ($raw) {
-                $parsed = ($raw -split "`n" | Where-Object { $_ -match '\d+\.\d+\.\d+\.\d+' }) -join ','
-                if ($parsed) { $tailIP = $parsed }
-              }
-              if (-not $tailIP) {
-                Start-Sleep -Seconds 5
-                $retries++
-              }
+              if ($raw) { $tailIP = ($raw -split "`n" | Where-Object { $_ -match '\d+\.\d+\.\d+\.\d+' }) -join ',' }
+              if (-not $tailIP) { Start-Sleep -Seconds 5; $retries++ }
             }
 
-            if (-not $tailIP) {
-              Write-Warning "Tailscale IP not assigned after retries. Will set TAILSCALE_IP=Unknown"
-              $tailIP = "Unknown"
-            }
+            if (-not $tailIP) { $tailIP = "Unknown" }
 
-            Write-Host "🌍 Tailscale IP: $tailIP" -ForegroundColor Green
+            Write-Host "🌍 Tailscale IP: $tailIP"
             Add-Content -Path $env:GITHUB_ENV -Value "TAILSCALE_IP=$tailIP"
             "TAILSCALE_IP=$tailIP" | Out-File -FilePath $log -Append
 
-            # Ensure RDP allowed on any interface (redundant with earlier rule)
-            try {
-              New-NetFirewallRule -DisplayName "GalaxyRDP-Allow-3389" -Direction Inbound -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue
-            } catch {}
+            # Ensure firewall rule for RDP
+            try { New-NetFirewallRule -DisplayName "Vayvy-Allow-3389" -Direction Inbound -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue } catch {}
           } catch {
             $_ | Out-String | Out-File -FilePath $log -Append
             Write-Host "❌ Tailscale up failed: $($_.Exception.Message)" -ForegroundColor Red
             exit 1
-          }
-
-      - name: "⚡ Ensure RDP Service & Firewall ready (force)"
-        shell: pwsh
-        run: |
-          Write-Host "----- FORCE ENABLE RDP -----" -ForegroundColor Cyan
-          try {
-            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
-            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
-
-            Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
-            if ((Get-Service -Name TermService).Status -ne 'Running') {
-              Start-Service -Name TermService -ErrorAction Stop
-            }
-            Restart-Service -Name TermService -Force -ErrorAction Stop
-            Write-Host "✅ Remote Desktop Service running" -ForegroundColor Green
-
-            netsh advfirewall firewall set rule group="remote desktop" new enable=Yes | Out-Null
-            netsh advfirewall firewall add rule name="GalaxyRDP-Force" dir=in action=allow protocol=TCP localport=$env:RDP_PORT | Out-Null
-            Write-Host "🛡️ Firewall rules ensured for RDP" -ForegroundColor Green
-          } catch {
-            Write-Host "⚠️ Could not fully ensure RDP service or firewall: $($_.Exception.Message)" -ForegroundColor Yellow
           }
 
       - name: "🔍 Verify RDP reachability (via Tailscale IP) — non-fatal"
@@ -301,14 +297,11 @@ jobs:
         continue-on-error: true
         run: |
           $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
-          $rdpPort = if ($env:RDP_PORT) { $env:RDP_PORT } else { 3389 }
+          $rdpPort = $env:RDP_PORT
           $tsIP = $env:TAILSCALE_IP
-
-          Write-Host "----- VERIFY RDP (Port $rdpPort) -----" -ForegroundColor Cyan
-          "Verifying RDP (port $rdpPort) against Tailscale IP: $tsIP" | Out-File -FilePath $log -Append
-
+          Write-Host "----- VERIFY RDP (Port $rdpPort) -----"
           if (-not $tsIP -or $tsIP -eq "" -or $tsIP -eq "Unknown") {
-            Write-Host "⚠️ No valid Tailscale IP available — skipping reachability test." -ForegroundColor Yellow
+            Write-Host "⚠️ No valid Tailscale IP available — skipping reachability test."
             "No valid Tailscale IP, skipped RDP check." | Out-File -FilePath $log -Append
             exit 0
           }
@@ -317,28 +310,27 @@ jobs:
           try {
             $res = Test-NetConnection -ComputerName $tsIP -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
             if ($res) {
-              Write-Host " ✅ Tailscale reachable" -ForegroundColor Green
+              Write-Host " ✅ Tailscale reachable"
               "Tailscale ($tsIP`:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
             } else {
-              Write-Host " ⚠️ Tailscale not reachable (will not fail job)" -ForegroundColor Yellow
+              Write-Host " ⚠️ Tailscale not reachable (ignored)"
               "Tailscale ($tsIP`:$rdpPort) not reachable ⚠️" | Out-File -FilePath $log -Append
             }
           } catch {
-            Write-Host " ⚠️ Error testing Tailscale reachability: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host " ⚠️ Error testing Tailscale reachability: $($_.Exception.Message)"
             "Error testing reachability: $($_.Exception.Message)" | Out-File -FilePath $log -Append
           }
 
-      - name: "📡 Network & System Snapshot (monitoring)"
+      - name: "📡 Minimal system snapshot (OS/CPU/Mem/Disk/PublicIP/Tailscale status)"
         shell: pwsh
         run: |
-          $outFile = "$env:ARTIFACT_DIR\07-monitoring.json"
+          $outFile = "$env:ARTIFACT_DIR\07-system.json"
           try {
-            Write-Host "----- MONITORING SNAPSHOT -----" -ForegroundColor Cyan
             $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, LastBootUpTime
             $cpu = (Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue
-            $memTotalMB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1MB,2)
-            $memFreeMB = [math]::Round((Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue,2)
+            $memFreeMB = (Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue
             $disks = Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,2)}}
+            try { $pub = Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 6 } catch { $pub = "Unknown" }
             $tails = ""
             try { $tails = (& "$env:ProgramFiles\Tailscale\tailscale.exe" status 2>$null) } catch {}
             $obj = [pscustomobject]@{
@@ -346,218 +338,75 @@ jobs:
               Computer = $env:COMPUTERNAME
               OS = $os
               CPUPercent = [math]::Round($cpu,2)
-              Memory = @{ TotalMB=$memTotalMB; FreeMB=$memFreeMB }
+              MemoryFreeMB = [math]::Round($memFreeMB,2)
               Disks = $disks
+              PublicIP = $pub
               Tailscale = $tails
             }
-            $obj | ConvertTo-Json -Depth 8 | Out-File -FilePath $outFile -Encoding UTF8
-            Write-Host "✅ Monitoring snapshot: $outFile" -ForegroundColor Green
+            $obj | ConvertTo-Json -Depth 6 | Out-File -FilePath $outFile -Encoding UTF8
+            Write-Host "✅ Snapshot saved: $outFile"
           } catch {
-            Write-Host "⚠️ Monitoring failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "⚠️ Snapshot failed: $($_.Exception.Message)"
           }
 
-      - name: "🔔 Discord — Notify START (includes Tailscale IP & password)"
-        shell: pwsh
-        run: |
-          $log = "$env:ARTIFACT_DIR\08-discord-start.log"
-          try {
-            $hook = $env:DISCORD_WEBHOOK
-            if (-not $hook -or $hook -eq "PASTE_YOUR_DISCORD_WEBHOOK_HERE") {
-              Write-Host "⚠️ Discord webhook not configured. Skipping." -ForegroundColor Yellow
-              exit 0
-            }
-
-            $run = $env:GITHUB_RUN_ID
-            $actor = $env:GITHUB_ACTOR
-            $repo = $env:GITHUB_REPOSITORY
-            $tsip = $env:TAILSCALE_IP
-            try { $public = Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 6 } catch { $public = "Unknown" }
-
-            $embed = @{
-              title = "🚀 GalaxyRDP Ultra — Provisioning Started"
-              description = "Preparing RDP, user, Tailscale, wallpaper, and keep-alive."
-              color = 5814783
-              fields = @(
-                @{ name = "👤 Actor"; value = $actor; inline = $true },
-                @{ name = "📦 Repo";  value = $repo; inline = $true },
-                @{ name = "🔁 Run ID"; value = $run; inline = $true },
-                @{ name = "🌐 Public IP"; value = $public; inline = $true },
-                @{ name = "🔗 Tailscale IP"; value = ($tsip ? $tsip : "Pending"); inline = $true },
-                @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
-                @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true }
-              )
-              footer = @{ text = "GalaxyRDP Ultra • $(Get-Date -Format o)" }
-            }
-
-            $payload = @{ username = "GalaxyRDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 8
-            Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json' -ErrorAction Stop
-            Write-Host "✅ Discord start notification posted (with password)." -ForegroundColor Green
-            "OK" | Out-File -FilePath $log -Append
-          } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
-            Write-Host "⚠️ Discord start notify failed: $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-
-      - name: "⏳ Keep-Alive Loop (12h) — background job + alert thresholds"
-        shell: pwsh
-        run: |
-          $log = "$env:ARTIFACT_DIR\09-keepalive.log"
-          try {
-            Write-Host "----- START KEEP-ALIVE (background) -----" -ForegroundColor Cyan
-
-            $interval = [int]$env:KEEP_ALIVE_INTERVAL_SECS
-            $limitMinutes = [int]$env:KEEP_ALIVE_MINUTES
-
-            $script = {
-              param($envvars)
-              $hook = $envvars.DISCORD_WEBHOOK
-              $user = $envvars.RDP_USER
-              $pass = $envvars.RDP_PASSWORD
-              $interval = [int]$envvars.KEEP_ALIVE_INTERVAL_SECS
-              $keepMinutes = [int]$envvars.KEEP_ALIVE_MINUTES
-
-              for ($elapsed = 0; $elapsed -lt ($keepMinutes * 60); $elapsed += $interval) {
-                try {
-                  $cpu = (Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue
-                  $memFree = (Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue
-                  $line = "[Heartbeat] $(Get-Date -Format o) | CPU: $([math]::Round($cpu,2))% | FreeMB: $([math]::Round($memFree,2))"
-                  $line | Out-File -FilePath "$envvars.ARTIFACT_DIR\heartbeat.log" -Append
-
-                  # Send lightweight alert if CPU > 90 or memory very low
-                  if ($cpu -gt 90 -or $memFree -lt 200) {
-                    if ($hook -and $hook -ne "PASTE_YOUR_DISCORD_WEBHOOK_HERE") {
-                      $embed = @{
-                        title = "⚠️ GalaxyRDP Alert — High Resource Usage"
-                        description = "Resource threshold crossed on run $($envvars.GITHUB_RUN_ID)"
-                        color = 15548997
-                        fields = @(
-                          @{ name = "CPU %"; value = "$([math]::Round($cpu,2))"; inline = $true },
-                          @{ name = "Free MB"; value = "$([math]::Round($memFree,2))"; inline = $true }
-                        )
-                        footer = @{ text = "Auto-alert from GalaxyRDP" }
-                      }
-                      $payload = @{ username="GalaxyRDP Bot"; embeds=@($embed) } | ConvertTo-Json -Depth 6
-                      try { Invoke-RestMethod -Uri $hook -Method Post -ContentType "application/json" -Body $payload -ErrorAction SilentlyContinue } catch {}
-                    }
-                  }
-                } catch {}
-                Start-Sleep -Seconds $interval
-              }
-            }
-
-            $ev = @{
-              DISCORD_WEBHOOK = $env:DISCORD_WEBHOOK;
-              RDP_USER = $env:RDP_USER;
-              RDP_PASSWORD = $env:RDP_PASSWORD;
-              KEEP_ALIVE_INTERVAL_SECS = $env:KEEP_ALIVE_INTERVAL_SECS;
-              KEEP_ALIVE_MINUTES = [int]$env:KEEP_ALIVE_MINUTES;
-              ARTIFACT_DIR = $env:ARTIFACT_DIR;
-              GITHUB_RUN_ID = $env:GITHUB_RUN_ID
-            }
-
-            Start-Job -ScriptBlock $script -ArgumentList ($ev) | Out-Null
-            Write-Host "✅ Keep-alive background job started (will run for $env:KEEP_ALIVE_MINUTES minutes)." -ForegroundColor Green
-            "OK" | Out-File -FilePath $log -Append
-          } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
-            Write-Host "⚠️ Keep-alive job failed to start: $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-
-      - name: "🔔 Discord — Notify SUCCESS (includes Tailscale IP & RDP credentials)"
+      - name: "🔔 Discord — Notify READY (includes Tailscale IP & RDP credentials)"
         if: success()
         shell: pwsh
         run: |
-          $log="$env:ARTIFACT_DIR\10-discord-success.log"
           try {
             $hook = $env:DISCORD_WEBHOOK
             if (-not $hook -or $hook -eq "PASTE_YOUR_DISCORD_WEBHOOK_HERE") {
-              Write-Host "ℹ️ Discord webhook not configured; skipping success notify." -ForegroundColor Yellow
+              Write-Host "⚠️ Discord webhook not configured; skipping."
               exit 0
             }
-
             $ts = $env:TAILSCALE_IP
-            if (-not $ts -or $ts -eq "") {
-              try { $ts = Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 6 } catch { $ts = "Unknown" }
-            }
-
+            if (-not $ts -or $ts -eq "") { $ts = "Unknown" }
             $embed = @{
-              title = "✅ GalaxyRDP Ultra — Session Ready"
-              description = "RDP is provisioned (via Tailscale). Credentials below — handle with care."
+              title = "✅ Vayvy GalaxyRDP Ultra — Session Ready"
+              description = "RDP provisioned. Connect with Tailscale IP for reliable access."
               color = 5763719
               fields = @(
                 @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
                 @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true },
-                @{ name = "🔗 Tailscale IP"; value = ($ts -ne "" ? $ts : "Unknown"); inline = $true },
+                @{ name = "🔗 Tailscale IP"; value = $ts; inline = $true },
                 @{ name = "🔌 RDP Port"; value = $env:RDP_PORT; inline = $true },
                 @{ name = "🕒 Keep-Alive (mins)"; value = $env:KEEP_ALIVE_MINUTES; inline = $true }
               )
-              footer = @{ text = "GalaxyRDP Ultra • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
+              footer = @{ text = "Vayvy GalaxyRDP • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
             }
-
-            $payload = @{ username = "GalaxyRDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 8
+            $payload = @{ username = "Vayvy RDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 8
             Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json' -ErrorAction Stop
-            Write-Host "✅ Discord success notification sent (contains credentials as requested)." -ForegroundColor Green
-            "OK" | Out-File -FilePath $log -Append
+            Write-Host "✅ Discord READY notification sent."
           } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
-            Write-Host "⚠️ Discord success notify failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "⚠️ Discord notify failed: $($_.Exception.Message)"
           }
 
-      - name: "📦 Upload artifacts (logs & creds) — download & delete after retrieval"
+      - name: "⏳ Keep-Alive Loop (heartbeat only)"
+        shell: pwsh
+        run: |
+          $interval = [int]$env:KEEP_ALIVE_INTERVAL_SECS
+          $end = (Get-Date).AddMinutes([int]$env:KEEP_ALIVE_MINUTES)
+          while ((Get-Date) -lt $end) {
+            $cpu = (Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue
+            $memFree = (Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue
+            Write-Host "[Heartbeat] $(Get-Date -Format o) | CPU: $([math]::Round($cpu,2))% | FreeMB: $([math]::Round($memFree,2))"
+            Start-Sleep -Seconds $interval
+          }
+
+      - name: "📦 Upload artifacts (wallpaper & creds)"
         uses: actions/upload-artifact@v4
         with:
-          name: galaxyrdp-artifacts-${{ github.run_id }}
-          path: ${{ env.ARTIFACT_DIR }}
+          name: vayvy-artifacts-${{ github.run_id }}
+          path: |
+            ${{ env.ARTIFACT_DIR }}
+            $env:USERPROFILE\Pictures\galaxyrdp-wallpaper.jpg
+            $env:USERPROFILE\Pictures\galaxyrdp-wallpaper.jpg
 
-      - name: "🧹 Best-effort cleanup local credential copy"
-        shell: pwsh
-        run: |
-          try {
-            $cf = "$env:ARTIFACT_DIR\creds.txt"
-            if (Test-Path $cf) {
-              "REDACTED - removed by workflow" | Out-File -FilePath $cf -Encoding UTF8
-              Remove-Item -Path $cf -Force -ErrorAction SilentlyContinue
-              Write-Host "🧹 Local creds file removed from runner (artifact copy may still exist)." -ForegroundColor Green
-            }
-          } catch {
-            Write-Host "⚠️ Cleanup creds failed: $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-
-      - name: "🏁 Finish Banner"
+      - name: "🏁 Finish banner"
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host ("═" * 80) -ForegroundColor Cyan
-          Write-Host "🏁 GalaxyRDP Ultra — Provisioning Completed (or kept alive for duration)" -ForegroundColor Green
-          Write-Host "Run ID: $env:GITHUB_RUN_ID  •  Actor: $env:GITHUB_ACTOR" -ForegroundColor Cyan
-          Write-Host ("═" * 80) -ForegroundColor Cyan
+          Write-Host ("=" * 72) -ForegroundColor Cyan
+          Write-Host "🏁 Vayvy GalaxyRDP — Done (or kept alive for configured duration)" -ForegroundColor Green
+          Write-Host ("=" * 72) -ForegroundColor Cyan
           Write-Host ""
-
-      - name: "❌ Discord Failure Notification (if any step failed)"
-        if: failure()
-        shell: pwsh
-        run: |
-          try {
-            $hook = $env:DISCORD_WEBHOOK
-            if (-not $hook -or $hook -eq "PASTE_YOUR_DISCORD_WEBHOOK_HERE") { exit 0 }
-            $actor = $env:GITHUB_ACTOR
-            $run = $env:GITHUB_RUN_ID
-            $err = if ($Error.Count -gt 0) { $Error[0].ToString() } else { "Unknown error — check logs" }
-            if ($err.Length -gt 500) { $err = $err.Substring(0,500) + "..." }
-            $embed = @{
-              title = "❌ GalaxyRDP Ultra — Workflow Failed"
-              description = "One or more steps failed. Please review artifacts & logs."
-              color = 15548997
-              fields = @(
-                @{ name = "👤 Actor"; value = $actor; inline = $true },
-                @{ name = "🔁 Run ID"; value = $run; inline = $true },
-                @{ name = "🛑 Error (short)"; value = $err; inline = $false }
-              )
-              footer = @{ text = "GalaxyRDP Ultra • $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
-            }
-            $payload = @{ username="GalaxyRDP Bot"; embeds=@($embed) } | ConvertTo-Json -Depth 6
-            Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType "application/json" -ErrorAction Stop
-            Write-Host "✅ Failure notification sent to Discord." -ForegroundColor Yellow
-          } catch {
-            Write-Host "⚠️ Failed to send failure notification: $($_.Exception.Message)" -ForegroundColor Yellow
-          }
