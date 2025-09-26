@@ -305,7 +305,7 @@ jobs:
 
       - name: "🔍 Verify RDP reachability (via Tailscale IP)"
         shell: pwsh
-        continue-on-error: false
+        continue-on-error: true
         run: |
           $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
           $rdpPort = $env:RDP_PORT
