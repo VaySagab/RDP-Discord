@@ -186,19 +186,7 @@ jobs:
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installer`"", "/quiet", "/norestart" -Wait -ErrorAction Stop
           Remove-Item $installer -Force -ErrorAction SilentlyContinue
 
-          # Cari lokasi tailscale.exe
-          $tsExe = @(
-            "$env:ProgramFiles\Tailscale\tailscale.exe",
-            "$env:ProgramFiles(x86)\Tailscale\tailscale.exe"
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-          if ($tsExe) {
-            Write-Host "✅ Found tailscale.exe at $tsExe" -ForegroundColor Yellow
-            Add-Content -Path $env:GITHUB_ENV -Value "TAILSCALE_PATH=$tsExe"
-          } else {
-            Write-Host "⚠️ tailscale.exe not found after install." -ForegroundColor Red
-          }
-
+          Write-Host "✅ Tailscale installer executed (Yanzz function)." -ForegroundColor Yellow
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
@@ -208,40 +196,33 @@ jobs:
       - name: 🔗 Connect to Tailscale
         shell: pwsh
         env:
-          VAYVY_TAILSCALE_AUTHKEY: ${{ secrets.VAYVY_TAILSCALE_AUTHKEY }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.VAYVY_TAILSCALE_AUTHKEY }}
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 Connecting to Tailscale Network (Vayvy function)" -ForegroundColor Green
+          Write-Host "🔗 Connecting to Tailscale Network (Yanzz function)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
           if (-not $tsExe) {
-            $candidates = @(
-              "$env:ProgramFiles\Tailscale\tailscale.exe",
-              "$env:ProgramFiles(x86)\Tailscale\tailscale.exe"
-            )
-            foreach ($p in $candidates) {
-              if (Test-Path $p) { $tsExe = $p; break }
-            }
+            $candidates = @("$env:ProgramFiles\Tailscale\tailscale.exe","$env:ProgramFiles(x86)\Tailscale\tailscale.exe")
+            foreach ($p in $candidates) { if (Test-Path $p) { $tsExe = $p; break } }
           }
 
           if ($tsExe) {
             try {
-              & $tsExe up --authkey=$env:VAYVY_TAILSCALE_AUTHKEY --hostname=gh-runner-$env:GITHUB_RUN_ID
+              & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname=gh-runner-$env:GITHUB_RUN_ID
               $tsIP = $null; $retries = 0
               while (-not $tsIP -and $retries -lt 12) {
                 Start-Sleep -Seconds 5
                 $out = & $tsExe ip -4 2>$null
-                if ($out) {
-                  $tsIP = ($out | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } | Select-Object -First 1)
-                }
+                if ($out) { $tsIP = ($out | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } | Select-Object -First 1) }
                 $retries++
               }
-
               if ($tsIP) {
                 Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
                 Write-Host "🌍 Tailscale IP: $tsIP" -ForegroundColor Yellow
+                # Allow RDP over Tailscale
                 New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
               } else {
                 Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
