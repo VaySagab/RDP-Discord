@@ -139,64 +139,58 @@ jobs:
             exit 1
           }
 
-      - name: "🎨 Generate & apply premium wallpaper"
+      - name: "🖼️ Generate Custom Text Wallpaper" 
         shell: pwsh
         run: |
-          $log="$env:ARTIFACT_DIR\03-wallpaper.log"
+          Write-Host ""
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "🖼️ Generating Custom Wallpaper (Vayvy watermark & footer)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             Add-Type -AssemblyName System.Drawing
+            $width = 1920; $height = 1080
+            $bmp = New-Object System.Drawing.Bitmap $width, $height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+            $g.Clear([System.Drawing.Color]::Black)
 
-            $width = [int]$env:WALLPAPER_WIDTH
-            $height = [int]$env:WALLPAPER_HEIGHT
-            $bmp = New-Object Drawing.Bitmap $width, $height
-            $gfx = [Drawing.Graphics]::FromImage($bmp)
+            # Main text in center
+            $mainText = "🌌 GalaxyRDP Ultra by VayVy 🚀"
+            $fontMain = New-Object System.Drawing.Font("Consolas", 72, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+            $brushMain = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Lime)
+            $size = $g.MeasureString($mainText, $fontMain)
+            $x = ($width - $size.Width) / 2
+            $y = ($height - $size.Height) / 2
+            $g.DrawString($mainText, $fontMain, $brushMain, $x, $y)
 
-            # Background gradient
-            $rect = New-Object Drawing.Rectangle 0,0,$width,$height
-            $brush = New-Object Drawing.Drawing2D.LinearGradientBrush $rect,
-              [Drawing.Color]::FromArgb(30,30,60),
-              [Drawing.Color]::FromArgb(10,10,20),
-              [Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal
-            $gfx.FillRectangle($brush, $rect)
+            # Watermark (top-right)
+            $wmText = "$($env:GITHUB_REPOSITORY) | Run $($env:GITHUB_RUN_ID) | $($env:GITHUB_ACTOR)"
+            $wmFont = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $wmSize = $g.MeasureString($wmText, $wmFont)
+            $wmX = $width - $wmSize.Width - 20
+            $wmY = 20
+            $g.DrawString($wmText, $wmFont, [System.Drawing.Brushes]::Gray, $wmX, $wmY)
 
-            # Fonts
-            $fontCenter = New-Object Drawing.Font("Segoe UI", 52, [Drawing.FontStyle]::Bold)
-            $fontBottom = New-Object Drawing.Font("Segoe UI", 16, [Drawing.FontStyle]::Italic)
+            # Footer (bottom-right)
+            $footer = "⚡ Powered by GitHub Actions"
+            $footerFont = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $footerSize = $g.MeasureString($footer, $footerFont)
+            $fx = $width - $footerSize.Width - 20
+            $fy = $height - $footerSize.Height - 20
+            $g.DrawString($footer, $footerFont, [System.Drawing.Brushes]::DarkGray, $fx, $fy)
 
-            # Brushes
-            $whiteBrush = [Drawing.Brushes]::White
-            $grayBrush  = [Drawing.Brushes]::LightGray
+            # Save and apply
+            $outPath = "$env:USERPROFILE\Pictures\galaxyrdp-wallpaper.jpg"
+            $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $outPath
+            rundll32.exe user32.dll, UpdatePerUserSystemParameters
 
-            # Center watermark
-            $text = "RDP by Vayvy"
-            $size = $gfx.MeasureString($text, $fontCenter)
-            $gfx.DrawString($text, $fontCenter, $whiteBrush, ($width - $size.Width)/2, ($height - $size.Height)/2)
-
-            # Footer copyright
-            $footer = "Copyright © Vayvy"
-            $size2 = $gfx.MeasureString($footer, $fontBottom)
-            $gfx.DrawString($footer, $fontBottom, $grayBrush, $width - $size2.Width - 20, $height - $size2.Height - 20)
-
-            # Save wallpaper
-            $output = $env:WALLPAPER_PATH
-            $bmp.Save($output, [Drawing.Imaging.ImageFormat]::Jpeg)
-
-            # Apply wallpaper (SystemParametersInfo)
-            Add-Type @"
-using System.Runtime.InteropServices;
-public class Win32 {
-  [DllImport("user32.dll", SetLastError=true)]
-  public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-}
-"@
-            [Win32]::SystemParametersInfo(20,0,$output,3) | Out-Null
-
-            "Wallpaper generated: $output" | Out-File -FilePath $log -Append
-            Write-Host "✅ Wallpaper applied: $output" -ForegroundColor Green
+            Write-Host "✅ Wallpaper applied successfully (with dynamic watermark & footer)." -ForegroundColor Yellow
           } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
-            Write-Host "⚠️ Wallpaper generation failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "⚠️ Wallpaper generation failed: $_" -ForegroundColor Red
           }
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host ""
 
       - name: "🌐 Install Tailscale (versioned, idempotent)"
         shell: pwsh
@@ -340,14 +334,14 @@ public class Win32 {
             Write-Host "⚠️ Monitoring failed: $($_.Exception.Message)" -ForegroundColor Yellow
           }
 
-      - name: "🔔 Discord — Notify START (includes IP, NOT password yet)"
+      - name: "🔔 Discord — Notify START (includes IP & password)"
         shell: pwsh
         run: |
           $log = "$env:ARTIFACT_DIR\08-discord-start.log"
           try {
             $hook = $env:DISCORD_WEBHOOK
             if (-not $hook -or $hook -eq "PASTE_YOUR_DISCORD_WEBHOOK_HERE") {
-              Write-Host "⚠️ Discord webhook not configured (env DISCORD_WEBHOOK). Skipping Discord start notify." -ForegroundColor Yellow
+              Write-Host "⚠️ Discord webhook not configured. Skipping." -ForegroundColor Yellow
               exit 0
             }
 
@@ -366,14 +360,16 @@ public class Win32 {
                 @{ name = "📦 Repo";  value = $repo; inline = $true },
                 @{ name = "🔁 Run ID"; value = $run; inline = $true },
                 @{ name = "🌐 Public IP"; value = $public; inline = $true },
-                @{ name = "🔗 Candidate IP (Tailscale)"; value = ($tsip ? $tsip : "Pending"); inline = $true }
+                @{ name = "🔗 Candidate IP (Tailscale)"; value = ($tsip ? $tsip : "Pending"); inline = $true },
+                @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
+                @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true }
               )
               footer = @{ text = "GalaxyRDP Ultra • $(Get-Date -Format o)" }
             }
 
             $payload = @{ username = "GalaxyRDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 8
             Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json' -ErrorAction Stop
-            Write-Host "✅ Discord start notification posted." -ForegroundColor Green
+            Write-Host "✅ Discord start notification posted (with password)." -ForegroundColor Green
             "OK" | Out-File -FilePath $log -Append
           } catch {
             $_ | Out-String | Out-File -FilePath $log -Append
