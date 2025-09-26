@@ -77,51 +77,45 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Step 2 - Create RDP User (Vayvy)
+      # Step 2 - Create RDP User (Vayvy) with 3-digit forced password
       # =================================================================
       - name: 👤 Create RDP user (Vayvy)
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "👤 Creating RDP User 'Vayvy' (random password + fallback)" -ForegroundColor Green
+          Write-Host "👤 Creating RDP User 'Vayvy' (forced 3-digit password)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          Add-Type -AssemblyName System.Security
-          $charSet = @{
-            Upper = [char[]](65..90); Lower = [char[]](97..122); Number = [char[]](48..57)
-          }
-          function New-RandomPassword($minLen = 8) {
-            $pwd = ""
-            $pwd += ($charSet.Upper | Get-Random -Count 1)
-            $pwd += ($charSet.Lower | Get-Random -Count 1)
-            $pwd += ($charSet.Number | Get-Random -Count 1)
-            $all = $charSet.Upper + $charSet.Lower + $charSet.Number
-            while ($pwd.Length -lt $minLen) { $pwd += ($all | Get-Random -Count 1) }
-            return ($pwd.ToCharArray() | Get-Random -Count $pwd.Length) -join ''
+          # Random 3-digit numeric password
+          $finalPassword = Get-Random -Minimum 100 -Maximum 999 | ForEach-Object { $_.ToString() }
+
+          # Force local policy to allow short passwords
+          try {
+            secedit /export /cfg C:\secpol.cfg
+            (Get-Content C:\secpol.cfg).ForEach{
+              $_ -replace 'MinimumPasswordLength = \d+', 'MinimumPasswordLength = 3'
+            } | Set-Content C:\secpol.cfg
+            secedit /configure /db C:\Windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
+            gpupdate /force | Out-Null
+            Write-Host "⚙️ Local security policy updated: min password length = 3" -ForegroundColor Yellow
+          } catch {
+            Write-Host "⚠️ Failed to update local policy: $_" -ForegroundColor Yellow
           }
 
-          $finalPassword = New-RandomPassword -minLen 12
-          $attempt=1
-          $created=$false
-          while (-not $created -and $attempt -le 3) {
-            try {
-              $secure = ConvertTo-SecureString $finalPassword -AsPlainText -Force
-              if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
-                New-LocalUser -Name "Vayvy" -Password $secure -AccountNeverExpires -ErrorAction Stop
-                Write-Host "✅ Created user 'Vayvy' (attempt $attempt)."
-              } else {
-                Set-LocalUser -Name "Vayvy" -Password $secure -ErrorAction Stop
-                Write-Host "✅ Updated password for 'Vayvy' (attempt $attempt)."
-              }
-              $created=$true
-            } catch {
-              Write-Host "⚠️ Attempt $attempt failed to create/update 'Vayvy': $_" -ForegroundColor Yellow
-              if ($attempt -eq 1) { $finalPassword = New-RandomPassword -minLen 14; Write-Host "➡️ Expanded pwd length." -ForegroundColor Yellow }
-              elseif ($attempt -eq 2) { $finalPassword = 'VayVy2025!'; Write-Host "➡️ Using fallback strong password." -ForegroundColor Yellow }
-              else { Write-Host "❌ Could not create local user 'Vayvy' after retries." -ForegroundColor Red; exit 1 }
+          # Create / update the user
+          try {
+            $secure = ConvertTo-SecureString $finalPassword -AsPlainText -Force
+            if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
+              New-LocalUser -Name "Vayvy" -Password $secure -AccountNeverExpires -ErrorAction Stop
+              Write-Host "✅ Created user 'Vayvy' with forced 3-digit password."
+            } else {
+              Set-LocalUser -Name "Vayvy" -Password $secure -ErrorAction Stop
+              Write-Host "✅ Updated user 'Vayvy' password (3-digit)."
             }
-            $attempt++
+          } catch {
+            Write-Host "❌ Could not create/update user 'Vayvy': $_" -ForegroundColor Red
+            exit 1
           }
 
           try { Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue } catch {}
@@ -130,9 +124,10 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "RDP_USER=Vayvy"
           Add-Content -Path $env:GITHUB_ENV -Value "RDP_PASS=$finalPassword"
 
-          Write-Host "🎉 RDP user ready: Vayvy (password stored in env RDP_PASS) - keep it secret!" -ForegroundColor Green
+          Write-Host "🎉 RDP user ready: Vayvy (password: $finalPassword)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
+
 
       # =================================================================
       # STEP: Generate Custom Text Wallpaper (with top-right watermark)
@@ -410,12 +405,12 @@ jobs:
       # =================================================================
       # Step 11: Keep Alive 12h + Resource Auto Alert
       # =================================================================
-      - name: ⏳ Keep Alive 12h + Resource Auto Alert (STEP 11)
+      - name: ⏳ Keep Alive 12h + Resource Auto Alert
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "⏳ [STEP 11] Starting keep-alive loop (12h) in background with resource alerts" -ForegroundColor Green
+          Write-Host "⏳ Starting keep-alive loop (12h) in background with resource alerts" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $script = {
@@ -442,13 +437,13 @@ jobs:
       # =================================================================
       # Monitoring Report generation (report-only)
       # =================================================================
-      - name: 🛡️ Monitoring (report-only) - produce file (STEP 12)
+      - name: 🛡️ Monitoring (report-only) - produce file
         shell: pwsh
         continue-on-error: true
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🛡️ [STEP 12] Monitoring (report-only) - snapshotting status" -ForegroundColor Green
+          Write-Host "🛡️ Monitoring (report-only) - snapshotting status" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $report = [ordered]@{}
