@@ -272,38 +272,51 @@ jobs:
             exit 1
           }
 
-      - name: "🔍 Verify RDP reachability (via Tailscale IP or local)"
+      - name: "🔍 Verify RDP reachability (via Tailscale IP or Public IP)"
         shell: pwsh
         run: |
-          $log="$env:ARTIFACT_DIR\06-verify-rdp.log"
-          try {
-            Write-Host "----- VERIFY RDP -----" -ForegroundColor Cyan
-            $ips = @()
-            if ($env:TS_IP -and $env:TS_IP -ne "Unknown") {
-              $ips = $env:TS_IP -split ','
-            } else {
-              # fallback: localhost
-              $ips = @("127.0.0.1")
-            }
-            $ok = $false
-            foreach ($ip in $ips) {
-              $ip = $ip.Trim()
-              Write-Host "Testing TCP $ip:$env:RDP_PORT ..." -NoNewline
-              $t = Test-NetConnection -ComputerName $ip -Port $env:RDP_PORT -WarningAction SilentlyContinue
-              if ($t.TcpTestSucceeded) {
-                Write-Host " ✅" -ForegroundColor Green
-                $ok = $true
-                break
-              } else {
-                Write-Host " ❌ (TcpTestSucceeded=$($t.TcpTestSucceeded))" -ForegroundColor Yellow
-              }
-            }
-            if (-not $ok) { throw "No reachable RDP endpoint on known IPs" }
-            "OK" | Out-File -FilePath $log -Append
-          } catch {
-            $_ | Out-String | Out-File -FilePath $log -Append
-            Write-Host "❌ RDP verification failed: $($_.Exception.Message)" -ForegroundColor Red
+          $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
+          $rdpPort = if ($env:RDP_PORT) { $env:RDP_PORT } else { 3389 }
+
+          Write-Host "----- VERIFY RDP ($rdpPort) -----" -ForegroundColor Cyan
+          "Verifying RDP port $rdpPort" | Out-File -FilePath $log -Append
+
+          $targets = @()
+          if ($env:TS_IP) { $targets += @{ Name = "Tailscale"; Ip = $env:TS_IP } }
+          if ($env:PUBLIC_IP) { $targets += @{ Name = "Public"; Ip = $env:PUBLIC_IP } }
+
+          if (-not $targets) {
+            Write-Host "⚠️ No IPs found to test" -ForegroundColor Yellow
             exit 1
+          }
+
+          $reachable = $false
+          foreach ($t in $targets) {
+            $ip = $t.Ip
+            $name = $t.Name
+
+            Write-Host "Testing TCP $ip`:$rdpPort ..." -NoNewline
+            try {
+              $res = Test-NetConnection -ComputerName $ip -Port $rdpPort -WarningAction SilentlyContinue
+              if ($res.TcpTestSucceeded) {
+                Write-Host " ✅ $name reachable" -ForegroundColor Green
+                "$name ($ip:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
+                $reachable = $true
+              } else {
+                Write-Host " ❌ $name not reachable" -ForegroundColor Red
+                "$name ($ip:$rdpPort) not reachable ❌" | Out-File -FilePath $log -Append
+              }
+            } catch {
+              Write-Host " ❌ $name error: $_" -ForegroundColor Red
+              "$name ($ip:$rdpPort) error: $_" | Out-File -FilePath $log -Append
+            }
+          }
+
+          if (-not $reachable) {
+            Write-Host "❌ No RDP target reachable!" -ForegroundColor Red
+            exit 1
+          } else {
+            Write-Host "✅ At least one RDP target is reachable" -ForegroundColor Green
           }
 
       - name: "📡 Network & System Snapshot (monitoring)"
