@@ -85,62 +85,45 @@ jobs:
             throw
           }
 
-      - name: "🧹 Optimize system: remove non-essential apps (make RDP snappier)"
+      - name: 🧹 Optimize system: remove non-essential apps (make RDP snappier)
         shell: pwsh
         run: |
           Write-Host "----- CLEANUP: uninstall common bloat / store apps -----"
-          try {
-            # WARNING: This removes common built-in UWP apps for all users on the runner.
-            # Adjust the list as needed—do NOT remove things required by your environment.
-            $toRemove = @(
-              "Microsoft.XboxGamingOverlay",
-              "Microsoft.XboxApp",
-              "Microsoft.3DBuilder",
-              "Microsoft.Getstarted",
-              "Microsoft.MicrosoftSolitaireCollection",
-              "Microsoft.ZuneMusic",
-              "Microsoft.ZuneVideo",
-              "Microsoft.MicrosoftOfficeHub",
-              "Microsoft.MobilityCenter" # example; unlikely installed, harmless
-            )
+          $apps = @(
+            "Microsoft.3DBuilder",
+            "Microsoft.MSPaint",
+            "Microsoft.XboxApp",
+            "Microsoft.ZuneMusic",
+            "Microsoft.ZuneVideo",
+            "Microsoft.BingWeather",
+            "Microsoft.GetHelp",
+            "Microsoft.Getstarted",
+            "Microsoft.MicrosoftOfficeHub",
+            "Microsoft.MicrosoftSolitaireCollection",
+            "Microsoft.MicrosoftStickyNotes",
+            "Microsoft.Microsoft3DViewer",
+            "Microsoft.People",
+            "Microsoft.SkypeApp",
+            "Microsoft.XboxGameOverlay",
+            "Microsoft.XboxGamingOverlay",
+            "Microsoft.XboxIdentityProvider",
+            "Microsoft.XboxSpeechToTextOverlay",
+            "Microsoft.YourPhone",
+            "Microsoft.MicrosoftTeams",
+            "Microsoft.WindowsFeedbackHub"
+          )
 
-            foreach ($name in $toRemove) {
-              try {
-                Write-Host "Attempting to remove package pattern: $name"
-                Get-AppxPackage -AllUsers -Name "$name" -ErrorAction SilentlyContinue |
-                  ForEach-Object { Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue }
-                Get-AppxProvisionedPackage -Online | Where-Object DisplayName -Match $name | ForEach-Object {
-                  $pkgName = $_.PackageName
-                  Remove-AppxProvisionedPackage -Online -PackageName $pkgName -ErrorAction SilentlyContinue
-                }
-              } catch {
-                Write-Host "⚠️ Could not remove $name: $($_.Exception.Message)" -ForegroundColor Yellow
-              }
+          foreach ($app in $apps) {
+            Write-Host "🗑️ Removing $app ..."
+            try {
+              Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop
+              Write-Host "✅ Successfully removed $app"
+            } catch {
+              Write-Host "⚠️ Could not remove ${app}: $($_.Exception.Message)"
             }
-
-            # Remove OneDrive if installed (common background process)
-            try {
-              $onedrive = "$env:WinDir\System32\OneDriveSetup.exe"
-              if (Test-Path $onedrive) {
-                Start-Process -FilePath $onedrive -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction SilentlyContinue
-                Write-Host "✅ OneDrive uninstalled (if present)."
-              }
-            } catch { Write-Host "⚠️ OneDrive uninstall skipped/failed: $_" -ForegroundColor Yellow }
-
-            # Disable telemetry services that are safe to turn off on ephemeral runner
-            try {
-              $svc = "DiagTrack" # Connected User Experiences and Telemetry
-              if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
-                Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
-                Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
-                Write-Host "⚡ Disabled telemetry service: $svc"
-              }
-            } catch { }
-
-            Write-Host "✅ Cleanup (best-effort) completed."
-          } catch {
-            Write-Host "⚠️ Cleanup step failed: $($_.Exception.Message)" -ForegroundColor Yellow
           }
+
+          Write-Host "✨ Cleanup finished, system should be lighter now!"
 
       - name: "👤 Create local RDP user (Vayvy) — password fixed"
         shell: pwsh
