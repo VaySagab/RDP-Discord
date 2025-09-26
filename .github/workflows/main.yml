@@ -272,34 +272,59 @@ jobs:
             exit 1
           }
 
-      - name: 🔍 Verify RDP reachability (via Tailscale IP or Public IP)
+      - name: "⚡ Force-enable RDP service & open firewall"
         shell: pwsh
+        continue-on-error: false
         run: |
-          $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
-          $rdpPort = if ($env:RDP_PORT) { $env:RDP_PORT } else { 3389 }
+          Write-Host "----- ENABLE RDP SERVICE -----" -ForegroundColor Cyan
+          try {
+            # Enable Remote Desktop
+            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                            -Name "fDenyTSConnections" -Value 0 -Force
 
-          Write-Host "----- VERIFY RDP (Port $rdpPort) -----" -ForegroundColor Cyan
-          "Verifying RDP port $rdpPort" | Out-File -FilePath $log -Append
+            # Enable Network Level Authentication OFF (biar simple)
+            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                            -Name "UserAuthentication" -Value 0 -Force
 
-          # Kumpulkan target IP
-          $targets = @()
-          if ($env:TS_IP) { $targets += @{ Name = "Tailscale"; Ip = $env:TS_IP } }
-          if ($env:PUBLIC_IP) { $targets += @{ Name = "Public"; Ip = $env:PUBLIC_IP } }
+            # Restart Remote Desktop Services
+            Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
+            if ((Get-Service -Name TermService).Status -ne 'Running') {
+              Start-Service -Name TermService -ErrorAction Stop
+            }
+            Restart-Service -Name TermService -Force -ErrorAction Stop
+            Write-Host "✅ Remote Desktop Services started & set to Automatic" -ForegroundColor Green
 
-          if (-not $targets) {
-            Write-Host "⚠️ No IPs found to test (TS_IP / PUBLIC_IP missing)" -ForegroundColor Yellow
+            # Firewall allow inbound RDP
+            netsh advfirewall firewall add rule name="GalaxyRDP-3389-Allow" `
+              dir=in action=allow protocol=TCP localport=3389 profile=any | Out-Null
+            Write-Host "🛡️ Firewall updated to allow inbound RDP (3389)" -ForegroundColor Green
+          } catch {
+            Write-Host "❌ Failed to enable RDP service: $($_.Exception.Message)" -ForegroundColor Red
             exit 1
           }
 
+      - name: "🔍 Verify RDP reachability (via Tailscale IP or Public IP)"
+        shell: pwsh
+        continue-on-error: false
+        run: |
+          $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
+          $rdpPort = $env:RDP_PORT
+          $targets = @()
+
+          if ($env:TAILSCALE_IP) { $targets += @{ Name = "Tailscale"; IP = $env:TAILSCALE_IP } }
+          if ($env:PUBLIC_IP)    { $targets += @{ Name = "Public";    IP = $env:PUBLIC_IP    } }
+
+          Write-Host "----- VERIFY RDP (Port $rdpPort) -----" -ForegroundColor Cyan
+
           $reachable = $false
           foreach ($t in $targets) {
-            $ip = $t.Ip
             $name = $t.Name
+            $ip   = $t.IP
 
             Write-Host "Testing TCP $ip`:$rdpPort ..." -NoNewline
             try {
-              $res = Test-NetConnection -ComputerName $ip -Port $rdpPort -WarningAction SilentlyContinue
-              if ($res.TcpTestSucceeded) {
+              $result = Test-NetConnection -ComputerName $ip -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
+              if ($result) {
                 Write-Host " ✅ $name reachable" -ForegroundColor Green
                 "$name ($ip`:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
                 $reachable = $true
@@ -308,8 +333,7 @@ jobs:
                 "$name ($ip`:$rdpPort) not reachable ❌" | Out-File -FilePath $log -Append
               }
             } catch {
-              Write-Host " ❌ $name error: $_" -ForegroundColor Red
-              "$name ($ip`:$rdpPort) error: $_" | Out-File -FilePath $log -Append
+              Write-Host " ❌ Error testing $name ($ip`:$rdpPort): $($_.Exception.Message)" -ForegroundColor Red
             }
           }
 
@@ -317,7 +341,7 @@ jobs:
             Write-Host "❌ No RDP target reachable!" -ForegroundColor Red
             exit 1
           } else {
-            Write-Host "✅ At least one RDP target is reachable" -ForegroundColor Green
+            Write-Host "✅ At least one RDP target reachable" -ForegroundColor Green
           }
 
       - name: "📡 Network & System Snapshot (monitoring)"
