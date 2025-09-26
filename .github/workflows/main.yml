@@ -196,24 +196,6 @@ jobs:
       - name: 🔗 Connect to Tailscale
         shell: pwsh
         env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-        run: |
-          Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 Connecting to Tailscale Network (Yanzz function)" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-
-          $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
-          if (-not $tsExe) {
-            $candidates = @("$env:ProgramFiles\Tailscale\tailscale.exe","$env:ProgramFiles(x86)\Tailscale\tailscale.exe")
-            foreach ($p in $candidates) { if (Test-Path $p) { $tsExe = $p; break } }
-          }
-
-          if ($tsExe) {
-            try {
-              & $tsExe up --authkey=$env:VAYVY_TAILSCALE_AUTHKEY       - name: 🔗 Connect to Tailscale
-        shell: pwsh
-        env:
           VAYVY_TAILSCALE_AUTHKEY: ${{ secrets.VAYVY_TAILSCALE_AUTHKEY }}
         run: |
           Write-Host ""
