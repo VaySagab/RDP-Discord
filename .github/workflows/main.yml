@@ -210,53 +210,32 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # =================================================================
-      # Step 4 - Connect to Tailscale (optional; uses secret if present)
-      # =================================================================
-      - name: 🔗 Connect to Tailscale
+      - name: 🌌 Connect Tailscale (STEP X)
         shell: pwsh
-        env:
-          VAYVY_TAILSCALE_AUTHKEY: ${{ secrets.VAYVY_TAILSCALE_AUTHKEY }}
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 Connecting to Tailscale Network (best-effort)" -ForegroundColor Green
+          Write-Host "🌌 [STEP X] Connecting Tailscale" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
-          if (-not $tsExe) {
-            $candidates = @("$env:ProgramFiles\Tailscale\tailscale.exe","$env:ProgramFiles(x86)\Tailscale\tailscale.exe")
-            foreach ($p in $candidates) { if (Test-Path $p) { $tsExe = $p; break } }
-          }
+          tailscale up --authkey $env:VAYVY_TAILSCALE_AUTHKEY --hostname "GalaxyRDP" --accept-routes
 
-          if ($tsExe -and $env:VAYVY_TAILSCALE_AUTHKEY) {
-            try {
-              & $tsExe up --authkey=$env:VAYVY_TAILSCALE_AUTHKEY --hostname "gh-runner-${env:GITHUB_RUN_ID}" --accept-routes
-              $tsIP = $null; $retries = 0
-              while (-not $tsIP -and $retries -lt 12) {
-                Start-Sleep -Seconds 5
-                $out = & $tsExe ip -4 2>$null
-                if ($out) { $tsIP = ($out | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } | Select-Object -First 1) }
-                $retries++
-              }
-              if ($tsIP) {
-                Add-Content -Path $env:GITHUB_ENV -Value "VAYVY_TAILSCALE_IP=$tsIP"
-                Write-Host "🌍 Tailscale IP: $tsIP" -ForegroundColor Yellow
-              } else {
-                Add-Content -Path $env:GITHUB_ENV -Value "VAYVY_TAILSCALE_IP=Unknown"
-                Write-Host "⚠️ Tailscale connected but IP not found." -ForegroundColor Yellow
-              }
-            } catch {
-              Add-Content -Path $env:GITHUB_ENV -Value "VAYVY_TAILSCALE_IP=Unknown"
-              Write-Host "⚠️ Tailscale up failed: $_" -ForegroundColor Yellow
-            }
+          $tsIP = (tailscale ip -4 | Select-Object -First 1)
+          if ($tsIP) {
+            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
+            Write-Host "🌍 Tailscale IP detected: $tsIP"
           } else {
-            Add-Content -Path $env:GITHUB_ENV -Value "VAYVY_TAILSCALE_IP=Unknown"
-            Write-Host "⚠️ tailscale.exe not found or authkey missing; skipping connect." -ForegroundColor Yellow
+            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
+            Write-Host "⚠️ No Tailscale IP found."
           }
 
+          # Pastikan RDP bisa diakses via interface Tailscale
+          New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
+
+          Write-Host "✅ Tailscale connected & RDP allowed." -ForegroundColor Yellow
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
+
 
       # =================================================================
       # Step 5 - System tweaks (safe & non-destructive)
@@ -306,6 +285,33 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
+      - name: 🌌 Connect Tailscale (STEP X)
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "🌌 [STEP X] Connecting Tailscale" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
+          tailscale up --authkey $env:VAYVY_TAILSCALE_AUTHKEY --hostname "GalaxyRDP" --accept-routes
+
+          $tsIP = (tailscale ip -4 | Select-Object -First 1)
+          if ($tsIP) {
+            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
+            Write-Host "🌍 Tailscale IP detected: $tsIP"
+          } else {
+            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
+            Write-Host "⚠️ No Tailscale IP found."
+          }
+
+          # Pastikan RDP bisa diakses via interface Tailscale
+          New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
+
+          Write-Host "✅ Tailscale connected & RDP allowed." -ForegroundColor Yellow
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host ""
+
+
       # =================================================================
       # Step 6 - Network & Resource snapshot
       # =================================================================
@@ -352,6 +358,7 @@ jobs:
           $actor   = $env:GITHUB_ACTOR
           $runId   = $env:GITHUB_RUN_ID
           $repo    = $env:GITHUB_REPOSITORY
+          $tsIP    = $env:TS_IP
 
           try { $publicIp = (Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 10) } catch { $publicIp = "Unknown" }
           try { $tailscaleIp = (tailscale ip -4 | Select-Object -First 1) } catch { $tailscaleIp = "Not Connected" }
