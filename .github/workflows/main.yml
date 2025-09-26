@@ -576,44 +576,6 @@ jobs:
       # =================================================================
       # Cleanup (end-of-job best-effort cleanup)
       # =================================================================
-      - name: 🧹 Cleanup (best-effort)
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🧹 [CLEANUP] Performing best-effort cleanup" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-
-          try {
-            if (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue) {
-              Remove-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue
-              Write-Host "🧾 Removed local user 'Vayvy'." -ForegroundColor Yellow
-            } else {
-              Write-Host "ℹ️ Local user 'Vayvy' not present." -ForegroundColor Cyan
-            }
-          } catch {
-            Write-Host "⚠️ Failed to remove user: $_" -ForegroundColor Yellow
-          }
-
-          try {
-            $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
-            if ($tsExe) { & $tsExe logout -ErrorAction SilentlyContinue; Write-Host "🔒 Tailscale logged out." -ForegroundColor Yellow }
-          } catch {
-            Write-Host "⚠️ Tailscale logout failed: $_" -ForegroundColor Yellow
-          }
-
-          try {
-            Stop-Service -Name TermService -Force -ErrorAction SilentlyContinue
-            Write-Host "🛑 TermService stopped (best-effort)." -ForegroundColor Yellow
-          } catch {
-            Write-Host "⚠️ Stop TermService failed or not permitted: $_" -ForegroundColor Yellow
-          }
-
-          Write-Host "✅ Cleanup finished." -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host ""
-
       # =================================================================
       # Final banner / footer
       # =================================================================
