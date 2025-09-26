@@ -50,19 +50,21 @@ jobs:
         shell: pwsh
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          RDP_PORT: 3389
         run: |
           function Install-RDPAndFirewall {
             Write-Host "=== Install-RDPAndFirewall ==="
             try {
               # Enable RDP
-              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
-
-              # UserAuthentication=0 disables NLA (safer to turn off for RDP clients that don't support NLA)
-              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
-              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                               -Name "fDenyTSConnections" -Value 0 -Force
+              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                               -Name "UserAuthentication" -Value 0 -Force
+              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                               -Name "SecurityLayer" -Value 0 -Force
 
               # Firewall idempotent rule
-              $ruleName = "Vayvy-GalaxyRDP-3389"
+              $ruleName = "GalaxyRDP-3389"
               & netsh advfirewall firewall delete rule name="$ruleName" 2>$null
               netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=$env:RDP_PORT profile=any | Out-Null
               New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -LocalPort $env:RDP_PORT -Protocol TCP -Action Allow -Profile Any -ErrorAction SilentlyContinue
@@ -87,7 +89,10 @@ jobs:
             try {
               $tsExe = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
               if (-not (Test-Path $tsExe)) {
-                $ver = $env:TAILSCALE_VERSION
+                $ver = if ($env:TAILSCALE_VERSION) { $env:TAILSCALE_VERSION } else { "latest" }
+                if ($ver -eq "latest") {
+                  $ver = "1.70.0"  # fallback safe version
+                }
                 $msi = Join-Path $env:TEMP "tailscale-$ver.msi"
                 $url = "https://pkgs.tailscale.com/stable/tailscale-setup-$ver-amd64.msi"
                 Write-Host "⬇️ Downloading Tailscale $ver ..."
@@ -99,10 +104,10 @@ jobs:
                 Write-Host "✅ Tailscale already installed ($tsExe)."
               }
 
-              # Bring up Tailscale (prefer secrets.TAILSCALE_AUTH_KEY passed via env)
-              $hostname = "vayvy-runner-$($env:GITHUB_RUN_ID)"
+              # Bring up Tailscale
+              $hostname = "galaxy-runner-$($env:GITHUB_RUN_ID)"
               if ($AuthKey -and $AuthKey -ne "") {
-                & $tsExe up --authkey=$AuthKey --hostname=$hostname 2>&1 | Write-Host
+                & $tsExe up --authkey=$AuthKey --hostname=$hostname --accept-routes --accept-dns 2>&1 | Write-Host
               } else {
                 Write-Host "⚠️ No Tailscale auth key provided; attempting up without key (may require interactive auth)" -ForegroundColor Yellow
                 & $tsExe up --hostname=$hostname 2>&1 | Write-Host
@@ -119,10 +124,13 @@ jobs:
 
               Write-Host "🌍 Tailscale IP: $tailIP"
               Add-Content -Path $env:GITHUB_ENV -Value "TAILSCALE_IP=$tailIP"
-              "TAILSCALE_IP=$tailIP" | Out-File -FilePath "$env:ARTIFACT_DIR\05-tailscale-up.log" -Append
 
-              # Ensure firewall rule for RDP (again)
-              try { New-NetFirewallRule -DisplayName "Vayvy-Allow-3389" -Direction Inbound -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue } catch {}
+              # Ensure firewall rule for RDP (again, redundancy)
+              try { 
+                New-NetFirewallRule -DisplayName "Galaxy-Allow-3389" -Direction Inbound `
+                  -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue 
+              } catch {}
+
             } catch {
               Write-Host "❌ Install-TailscaleAndConnect failed: $($_.Exception.Message)" -ForegroundColor Red
               throw
@@ -132,7 +140,6 @@ jobs:
           function Optimize-System {
             Write-Host "=== Optimize-System: remove bloat, tweak services & visuals ==="
             try {
-              # Remove common store apps (best-effort)
               $apps = @(
                 "Microsoft.3DBuilder","Microsoft.MSPaint","Microsoft.XboxApp","Microsoft.ZuneMusic","Microsoft.ZuneVideo",
                 "Microsoft.BingWeather","Microsoft.GetHelp","Microsoft.Getstarted","Microsoft.MicrosoftOfficeHub",
@@ -142,36 +149,35 @@ jobs:
                 "Microsoft.MicrosoftTeams","Microsoft.WindowsFeedbackHub"
               )
               foreach ($app in $apps) {
-                try { Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop; Write-Host "Removed $app" } catch {}
+                try { Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop; Write-Host "🗑 Removed $app" } catch {}
               }
 
-              # Disable telemetry & unnecessary services
+              # Disable telemetry & services
               Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue; Stop-Service DiagTrack -ErrorAction SilentlyContinue
               Set-Service MapsBroker -StartupType Disabled -ErrorAction SilentlyContinue; Stop-Service MapsBroker -ErrorAction SilentlyContinue
-
               'XblAuthManager','XblGameSave','XboxNetApiSvc' | ForEach-Object {
                 Set-Service $_ -StartupType Disabled -ErrorAction SilentlyContinue
                 Stop-Service $_ -ErrorAction SilentlyContinue
               }
               Set-Service DoSvc -StartupType Disabled -ErrorAction SilentlyContinue; Stop-Service DoSvc -ErrorAction SilentlyContinue
 
-              # Visual tweaks for RDP responsiveness (HKCU keys may apply at next session)
+              # Visual tweaks
               try {
                 New-Item -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer -ErrorAction SilentlyContinue | Out-Null
                 Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name VisualFXSetting -Value 2 -ErrorAction SilentlyContinue
               } catch {}
 
-              Write-Host "✅ System optimization applied (best-effort)."
+              Write-Host "✅ System optimization applied."
             } catch {
               Write-Host "⚠️ Optimize-System encountered errors: $($_.Exception.Message)" -ForegroundColor Yellow
             }
           }
 
-          # === EXECUTE SEQUENCE ===
+          # === EXECUTION ===
           Install-RDPAndFirewall
           Optimize-System
 
-          # Choose authkey: prefer secrets, else inline env
+          # Pick Tailscale authkey
           $authKey = $env:TAILSCALE_AUTH_KEY
           if (-not $authKey -or $authKey -eq "") {
             if ($env:USE_INLINE_TAILSCALE_KEY -eq "true" -and $env:INLINE_TAILSCALE_AUTH_KEY) {
@@ -180,6 +186,7 @@ jobs:
           }
 
           Install-TailscaleAndConnect -AuthKey $authKey
+
 
       - name: "👤 Create local RDP user (Vayvy) — fixed password"
         shell: pwsh
@@ -251,79 +258,79 @@ jobs:
             Write-Host "⚠️ Wallpaper generation issue: $($_.Exception.Message)" -ForegroundColor Yellow
           }
 
-      - name: "🔍 Finalize & Verify RDP via Tailscale"
+      - name: "🛠 Finalize & Verify RDP via Tailscale"
         shell: pwsh
         run: |
           Write-Host "----- FINAL RDP VALIDATION -----"
+
+          # 1. Pastikan TermService hidup
           try {
-            # Ensure TermService
-            try {
-              Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
-              if ((Get-Service -Name TermService).Status -ne 'Running') {
-                Start-Service -Name TermService -ErrorAction Stop
-              }
-              $svcOk = $true
-            } catch {
-              $svcOk = $false
+            Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
+            if ((Get-Service -Name TermService).Status -ne 'Running') {
+              Start-Service -Name TermService -ErrorAction Stop
             }
+            Write-Host "✅ TermService running."
+          } catch {
+            Write-Host "❌ Failed to start TermService: $($_.Exception.Message)"
+          }
 
-            # Firewall (double ensure)
-            try {
-              netsh advfirewall firewall delete rule name="Allow RDP 3389" 2>$null
-              netsh advfirewall firewall add rule name="Allow RDP 3389" dir=in action=allow protocol=TCP localport=$env:RDP_PORT profile=any
-              New-NetFirewallRule -DisplayName "Allow RDP 3389 TS" -Direction Inbound -LocalPort $env:RDP_PORT -Protocol TCP -Action Allow -Profile Any -ErrorAction SilentlyContinue
-            } catch {}
+          # 2. Force buka firewall port 3389
+          try {
+            netsh advfirewall firewall delete rule name="Allow RDP 3389" 2>$null
+            netsh advfirewall firewall add rule name="Allow RDP 3389" dir=in action=allow protocol=TCP localport=3389 profile=any
+            New-NetFirewallRule -DisplayName "Allow RDP 3389 TS" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any -ErrorAction SilentlyContinue
+            Write-Host "✅ Firewall rules applied."
+          } catch {
+            Write-Host "⚠️ Firewall config error: $($_.Exception.Message)"
+          }
 
-            # Local port test
-            $localCheck = Test-NetConnection -ComputerName 127.0.0.1 -Port $env:RDP_PORT -WarningAction SilentlyContinue
-            if ($localCheck.TcpTestSucceeded) {
-              Write-Host "✅ Local port $env:RDP_PORT is listening."
+          # 3. Tes port 3389 lokal
+          $localCheck = Test-NetConnection -ComputerName 127.0.0.1 -Port 3389 -WarningAction SilentlyContinue
+          if ($localCheck.TcpTestSucceeded) {
+            Write-Host "✅ Local port 3389 is listening."
+          } else {
+            Write-Host "❌ Local port 3389 NOT listening!"
+          }
+
+          # 4. Tes port 3389 via Tailscale IP
+          $tsIP = $env:TAILSCALE_IP
+          $rdpPort = $env:RDP_PORT
+          if ($tsIP -and $tsIP -ne "Unknown") {
+            $tsCheck = Test-NetConnection -ComputerName $tsIP -Port $rdpPort -WarningAction SilentlyContinue
+            if ($tsCheck.TcpTestSucceeded) {
+              Write-Host "✅ RDP via Tailscale ($tsIP`:$rdpPort) reachable."
+              $tsStatus = "Reachable ✅"
             } else {
-              Write-Host "❌ Local port $env:RDP_PORT NOT listening!"
+              Write-Host "⚠️ RDP via Tailscale ($tsIP`:$rdpPort) not reachable."
+              $tsStatus = "Not reachable ⚠️"
             }
+          } else {
+            Write-Host "⚠️ No valid Tailscale IP detected."
+            $tsStatus = "Unknown ⚠️"
+          }
 
-            # Tailscale IP test
-            $tsIP = $env:TAILSCALE_IP
-            if ($tsIP -and $tsIP -ne "Unknown") {
-              $tsCheck = Test-NetConnection -ComputerName $tsIP -Port $env:RDP_PORT -WarningAction SilentlyContinue
-              if ($tsCheck.TcpTestSucceeded) {
-                Write-Host "✅ RDP via Tailscale ($tsIP:$env:RDP_PORT) reachable."
-                $tsStatus = "Reachable ✅"
-              } else {
-                Write-Host "⚠️ RDP via Tailscale ($tsIP:$env:RDP_PORT) not reachable."
-                $tsStatus = "Not reachable ⚠️"
+          # 5. Kirim hasil ke Discord
+          try {
+            $hook = $env:DISCORD_WEBHOOK
+            if ($hook) {
+              $localStatus = if ($localCheck.TcpTestSucceeded) { "Listening ✅" } else { "Not Listening ❌" }
+              $embed = @{
+                title = "🛠 Final RDP Validation"
+                description = "GalaxyRDP Ultra connectivity check"
+                color = 8311585
+                fields = @(
+                  @{ name = "Service"; value = "TermService: Running ✅"; inline = $true },
+                  @{ name = "Local Port 3389"; value = $localStatus; inline = $true },
+                  @{ name = "Tailscale RDP"; value = "$tsIP`:$rdpPort → $tsStatus"; inline = $false }
+                )
+                footer = @{ text = "Validation @ $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
               }
-            } else {
-              Write-Host "⚠️ No valid Tailscale IP detected."
-              $tsStatus = "Unknown ⚠️"
-            }
-
-            # Post concise validation to Discord
-            try {
-              $hook = $env:DISCORD_WEBHOOK
-              if ($hook) {
-                $embed = @{
-                  title = "🛠 Final RDP Validation"
-                  description = "GalaxyRDP Ultra connectivity check (auto)"
-                  color = 8311585
-                  fields = @(
-                    @{ name = "TermService"; value = (if ($svcOk) { "Running ✅" } else { "Not Running ❌" }); inline = $true },
-                    @{ name = "Local Port $env:RDP_PORT"; value = (if ($localCheck.TcpTestSucceeded) { "Listening ✅" } else { "Not Listening ❌" }); inline = $true },
-                    @{ name = "Tailscale RDP"; value = ("$tsIP : $tsStatus"); inline = $false },
-                    @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
-                    @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true }
-                  )
-                  footer = @{ text = "Validation @ $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
-                }
-                $payload = @{ username = "Vayvy RDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 8
-                Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json' -ErrorAction SilentlyContinue
-                Write-Host "📡 Validation posted to Discord."
-              }
-            } catch {
-              Write-Host "⚠️ Discord post failed: $($_.Exception.Message)" -ForegroundColor Yellow
+              $payload = @{ username = "Vayvy RDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 6
+              Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json'
+              Write-Host "📡 Validation sent to Discord."
             }
           } catch {
-            Write-Host "⚠️ Final validation failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "⚠️ Discord validation failed: $($_.Exception.Message)"
           }
 
       - name: "⏳ Keep-Alive Loop (non-blocking/background)"
