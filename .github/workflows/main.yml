@@ -1,4 +1,4 @@
-name: "🌌 RDP Ultra by VayVy [12h Keep-Alive | Discord Integrated]"
+name: "🌌 GalaxyRDP Ultra by VayVy — Cleaned"
 
 on:
   workflow_dispatch:
@@ -6,23 +6,20 @@ on:
 jobs:
   vayvy-rdp:
     runs-on: windows-latest
-    timeout-minutes: 720   # 12 jam
+    timeout-minutes: 720 # 12 jam
 
     env:
       # ---------------------------
-      # EDIT THESE (or put into GitHub Secrets)
+      # EDIT THESE (strongly recommended to use GitHub Secrets)
       # ---------------------------
-      # Discord webhook: (you asked to allow webhook inside workflow)
-      # Replace the placeholder below with your webhook URL if you insist on inline.
-      # Recommended: move to secrets and reference via ${{ secrets.DISCORD_WEBHOOK }}
-      DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
+      # Discord webhook: move to secrets (recommended: secrets.DISCORD_WEBHOOK)
+      DISCORD_WEBHOOK: "PASTE_YOUR_DISCORD_WEBHOOK_HERE"
 
       # Tailscale auth key: recommended to use secrets.TAILSCALE_AUTH_KEY
-      # If you want inline (NOT recommended) put the key here and set USE_INLINE_TAILSCALE_KEY=true
       USE_INLINE_TAILSCALE_KEY: "false"
       INLINE_TAILSCALE_AUTH_KEY: ""
 
-      # Owner / user & password (you requested fixed password)
+      # Owner / user & password (for convenience here; better to use secrets)
       RDP_USER: "Vayvy"
       RDP_PASSWORD: "Vay2025!"
 
@@ -85,12 +82,12 @@ jobs:
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
             Write-Host "🔓 RDP enabled (fDenyTSConnections=0)" -ForegroundColor Green
 
-            # Optionally set NLA off for broader compatibility (you can change)
+            # Optionally set NLA off for broader compatibility
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
             Write-Host "🔧 RDP WinStation params set (UserAuthentication=0, SecurityLayer=0)" -ForegroundColor Green
 
-            # Firewall: create idempotent rule for RDP port
+            # Firewall: idempotent rule for RDP port
             $ruleName = "GalaxyRDP-Allowed-3389"
             & netsh advfirewall firewall delete rule name="$ruleName" 2>$null
             netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=$env:RDP_PORT profile=any | Out-Null
@@ -130,7 +127,7 @@ jobs:
             Add-LocalGroupMember -Group "Administrators" -Member $user -ErrorAction SilentlyContinue
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user -ErrorAction SilentlyContinue
 
-            # Save credentials to artifact securely (user must delete after download)
+            # Save credentials to artifact (user must delete after download)
             $credFile = "$env:ARTIFACT_DIR\creds.txt"
             "USER:$user`nPASSWORD:$pass`nNOTE: Remove this file after secure retrieval." | Out-File -FilePath $credFile -Encoding UTF8
 
@@ -141,58 +138,61 @@ jobs:
             Write-Host "❌ User creation failed: $($_.Exception.Message)" -ForegroundColor Red
             exit 1
           }
-    - name: 🎨 Generate & apply premium wallpaper
-      shell: pwsh
-      run: |
-        Add-Type -AssemblyName System.Drawing
 
-        $width = 1920
-        $height = 1080
-        $bmp = New-Object Drawing.Bitmap $width, $height
-        $gfx = [Drawing.Graphics]::FromImage($bmp)
+      - name: "🎨 Generate & apply premium wallpaper"
+        shell: pwsh
+        run: |
+          $log="$env:ARTIFACT_DIR\03-wallpaper.log"
+          try {
+            Add-Type -AssemblyName System.Drawing
 
-        # Background gradient
-        $rect = New-Object Drawing.Rectangle 0,0,$width,$height
-        $brush = New-Object Drawing.Drawing2D.LinearGradientBrush $rect,
-          [Drawing.Color]::FromArgb(30,30,60),
-          [Drawing.Color]::FromArgb(10,10,20),
-          [Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal
-        $gfx.FillRectangle($brush, $rect)
+            $width = [int]$env:WALLPAPER_WIDTH
+            $height = [int]$env:WALLPAPER_HEIGHT
+            $bmp = New-Object Drawing.Bitmap $width, $height
+            $gfx = [Drawing.Graphics]::FromImage($bmp)
 
-        # Fonts
-        $fontCenter = New-Object Drawing.Font("Segoe UI", 52, [Drawing.FontStyle]::Bold)
-        $fontBottom = New-Object Drawing.Font("Segoe UI", 16, [Drawing.FontStyle]::Italic)
+            # Background gradient
+            $rect = New-Object Drawing.Rectangle 0,0,$width,$height
+            $brush = New-Object Drawing.Drawing2D.LinearGradientBrush $rect,
+              [Drawing.Color]::FromArgb(30,30,60),
+              [Drawing.Color]::FromArgb(10,10,20),
+              [Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal
+            $gfx.FillRectangle($brush, $rect)
 
-        # Brushes
-        $whiteBrush = [Drawing.Brushes]::White
-        $grayBrush  = [Drawing.Brushes]::LightGray
+            # Fonts
+            $fontCenter = New-Object Drawing.Font("Segoe UI", 52, [Drawing.FontStyle]::Bold)
+            $fontBottom = New-Object Drawing.Font("Segoe UI", 16, [Drawing.FontStyle]::Italic)
 
-        # Center watermark
-        $text = "RDP by Vayvy"
-        $size = $gfx.MeasureString($text, $fontCenter)
-        $gfx.DrawString($text, $fontCenter, $whiteBrush, ($width - $size.Width)/2, ($height - $size.Height)/2)
+            # Brushes
+            $whiteBrush = [Drawing.Brushes]::White
+            $grayBrush  = [Drawing.Brushes]::LightGray
 
-        # Footer copyright
-        $footer = "Copyright © Vayvy"
-        $size2 = $gfx.MeasureString($footer, $fontBottom)
-        $gfx.DrawString($footer, $fontBottom, $grayBrush, $width - $size2.Width - 20, $height - $size2.Height - 20)
+            # Center watermark
+            $text = "RDP by Vayvy"
+            $size = $gfx.MeasureString($text, $fontCenter)
+            $gfx.DrawString($text, $fontCenter, $whiteBrush, ($width - $size.Width)/2, ($height - $size.Height)/2)
 
-        # Save wallpaper
-        $output = "$env:PUBLIC\Vayvy_wallpaper.jpg"
-        $bmp.Save($output, [Drawing.Imaging.ImageFormat]::Jpeg)
+            # Footer copyright
+            $footer = "Copyright © Vayvy"
+            $size2 = $gfx.MeasureString($footer, $fontBottom)
+            $gfx.DrawString($footer, $fontBottom, $grayBrush, $width - $size2.Width - 20, $height - $size2.Height - 20)
 
-        # Apply wallpaper
-        Add-Type @"
+            # Save wallpaper
+            $output = $env:WALLPAPER_PATH
+            $bmp.Save($output, [Drawing.Imaging.ImageFormat]::Jpeg)
+
+            # Apply wallpaper (SystemParametersInfo)
+            Add-Type @"
 using System.Runtime.InteropServices;
 public class Win32 {
   [DllImport("user32.dll", SetLastError=true)]
   public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 }
 "@
-        [Win32]::SystemParametersInfo(20,0,$output,3) | Out-Null
+            [Win32]::SystemParametersInfo(20,0,$output,3) | Out-Null
 
-            "Wallpaper generated: $out" | Out-File -FilePath $log -Append
-            Write-Host "✅ Wallpaper applied: $out" -ForegroundColor Green
+            "Wallpaper generated: $output" | Out-File -FilePath $log -Append
+            Write-Host "✅ Wallpaper applied: $output" -ForegroundColor Green
           } catch {
             $_ | Out-String | Out-File -FilePath $log -Append
             Write-Host "⚠️ Wallpaper generation failed: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -255,7 +255,7 @@ public class Win32 {
             while (-not $tsIP -and $r -lt 18) {
               Start-Sleep -Seconds 5
               $raw = & $tsExe ip -4 2>$null
-              if ($raw) { $tsIP = ($raw -split "`n" | Where-Object { $_ -match '\d+\.\d+\.\d+\.\d+' }) -join ',' }
+              if ($raw) { $tsIP = ($raw -split "`n" | Where-Object { $_ -match '\\d+\\.\\d+\\.\\d+\\.\\d+' }) -join ',' }
               $r++
             }
 
@@ -319,9 +319,9 @@ public class Win32 {
           try {
             Write-Host "----- MONITORING SNAPSHOT -----" -ForegroundColor Cyan
             $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, LastBootUpTime
-            $cpu = (Get-Counter '\Processor(_Total)\% Processor Time').CounterSamples.CookedValue
+            $cpu = (Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue
             $memTotalMB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1MB,2)
-            $memFreeMB = [math]::Round((Get-Counter '\Memory\Available MBytes').CounterSamples.CookedValue,2)
+            $memFreeMB = [math]::Round((Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue,2)
             $disks = Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,2)}}
             $tails = ""
             try { $tails = (& "$env:ProgramFiles\Tailscale\tailscale.exe" status 2>$null) } catch {}
@@ -389,7 +389,6 @@ public class Win32 {
 
             $interval = [int]$env:KEEP_ALIVE_INTERVAL_SECS
             $limitMinutes = [int]$env:KEEP_ALIVE_MINUTES
-            $iterations = [math]::Ceiling($limitMinutes*60 / $interval)
 
             $script = {
               param($envvars)
@@ -397,12 +396,15 @@ public class Win32 {
               $user = $envvars.RDP_USER
               $pass = $envvars.RDP_PASSWORD
               $interval = [int]$envvars.KEEP_ALIVE_INTERVAL_SECS
-              for ($i=0; $i -lt $envvars.KEEP_ALIVE_MINUTES*60; $i += $interval) {
+              $keepMinutes = [int]$envvars.KEEP_ALIVE_MINUTES
+
+              for ($elapsed = 0; $elapsed -lt ($keepMinutes * 60); $elapsed += $interval) {
                 try {
-                  $cpu = (Get-Counter '\Processor(_Total)\% Processor Time').CounterSamples.CookedValue
-                  $memFree = (Get-Counter '\Memory\Available MBytes').CounterSamples.CookedValue
+                  $cpu = (Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue
+                  $memFree = (Get-Counter '\\Memory\\Available MBytes').CounterSamples.CookedValue
                   $line = "[Heartbeat] $(Get-Date -Format o) | CPU: $([math]::Round($cpu,2))% | FreeMB: $([math]::Round($memFree,2))"
                   $line | Out-File -FilePath "$envvars.ARTIFACT_DIR\heartbeat.log" -Append
+
                   # Send lightweight alert if CPU > 90 or memory very low
                   if ($cpu -gt 90 -or $memFree -lt 200) {
                     if ($hook -and $hook -ne "PASTE_YOUR_DISCORD_WEBHOOK_HERE") {
@@ -543,4 +545,3 @@ public class Win32 {
           } catch {
             Write-Host "⚠️ Failed to send failure notification: $($_.Exception.Message)" -ForegroundColor Yellow
           }
-
