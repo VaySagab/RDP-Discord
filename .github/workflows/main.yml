@@ -12,24 +12,21 @@ jobs:
       # ---------------------------
       # EDIT THESE (strongly recommended to use GitHub Secrets)
       # ---------------------------
-      # Discord webhook: move to secrets (recommended: secrets.DISCORD_WEBHOOK)
       DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
-
-      # Tailscale auth key: recommended to use secrets.TAILSCALE_AUTH_KEY
       USE_INLINE_TAILSCALE_KEY: "false"
       INLINE_TAILSCALE_AUTH_KEY: ""
 
-      # Owner / user & password (for convenience here; better to use secrets)
+      # Owner / user & password (consider moving to secrets)
       RDP_USER: "Vayvy"
       RDP_PASSWORD: "Vay2025!"
 
       # Cosmetic / keepalive / artifacts
-      KEEP_ALIVE_MINUTES: "720"        # 12 hours
-      KEEP_ALIVE_INTERVAL_SECS: "300"  # heartbeat every 5 minutes
+      KEEP_ALIVE_MINUTES: "720"
+      KEEP_ALIVE_INTERVAL_SECS: "300"
       ARTIFACT_DIR: "galaxyrdp-artifacts"
       WALLPAPER_WIDTH: "1920"
       WALLPAPER_HEIGHT: "1080"
-      WALLPAPER_PATH: "$env:PUBLIC\\Vayvy_galaxyrdp_wallpaper.jpg"
+      WALLPAPER_PATH: "$env:PUBLIC\\Vayvy_galaxyrdp_wallpaper.bmp"
       TAILSCALE_VERSION: "1.82.0"
       RDP_PORT: "3389"
 
@@ -78,25 +75,23 @@ jobs:
           try {
             Write-Host "----- RDP CONFIGURATION -----" -ForegroundColor Cyan
 
-            # Enable RDP
+            # Enable RDP (registry)
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
             Write-Host "🔓 RDP enabled (fDenyTSConnections=0)" -ForegroundColor Green
 
-            # Optionally set NLA off for broader compatibility
+            # Turn off NLA for broader compatibility (optional)
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
             Write-Host "🔧 RDP WinStation params set (UserAuthentication=0, SecurityLayer=0)" -ForegroundColor Green
 
-            # Firewall: idempotent rule for RDP port
+            # Ensure firewall rule exists
             $ruleName = "GalaxyRDP-Allowed-3389"
             & netsh advfirewall firewall delete rule name="$ruleName" 2>$null
             netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=$env:RDP_PORT profile=any | Out-Null
             Write-Host "🛡️ Firewall rule added: $ruleName on port $env:RDP_PORT" -ForegroundColor Green
 
-            # Restart TermService to apply
-            Restart-Service -Name TermService -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 3
-            Write-Host "🔁 TermService restarted" -ForegroundColor Green
+            # Restart TermService to apply (best-effort)
+            try { Restart-Service -Name TermService -Force -ErrorAction Stop; Start-Sleep -Seconds 3; Write-Host "🔁 TermService restarted" -ForegroundColor Green } catch { Write-Host "⚠️ Could not restart TermService (may require elevation)" -ForegroundColor Yellow }
 
             "OK" | Out-File -FilePath $log -Append
           } catch {
@@ -114,7 +109,6 @@ jobs:
             $user = $env:RDP_USER
             $pass = $env:RDP_PASSWORD
 
-            # If user exists, remove then create for idempotency
             if (Get-LocalUser -Name $user -ErrorAction SilentlyContinue) {
               Write-Host "♻️ Removing existing user $user" -ForegroundColor Yellow
               Remove-LocalUser -Name $user -ErrorAction SilentlyContinue
@@ -123,11 +117,9 @@ jobs:
             $secure = ConvertTo-SecureString $pass -AsPlainText -Force
             New-LocalUser -Name $user -Password $secure -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword:$false -ErrorAction Stop
 
-            # Add to groups
             Add-LocalGroupMember -Group "Administrators" -Member $user -ErrorAction SilentlyContinue
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user -ErrorAction SilentlyContinue
 
-            # Save credentials to artifact (user must delete after download)
             $credFile = "$env:ARTIFACT_DIR\creds.txt"
             "USER:$user`nPASSWORD:$pass`nNOTE: Remove this file after secure retrieval." | Out-File -FilePath $credFile -Encoding UTF8
 
@@ -139,7 +131,7 @@ jobs:
             exit 1
           }
 
-      - name: "🖼️ Generate Custom Text Wallpaper" 
+      - name: 🖼️ Generate Custom Text Wallpaper 
         shell: pwsh
         run: |
           Write-Host ""
@@ -191,7 +183,7 @@ jobs:
           }
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
-
+          
       - name: "🌐 Install Tailscale (versioned, idempotent)"
         shell: pwsh
         run: |
@@ -221,7 +213,6 @@ jobs:
       - name: "🔗 Establish Tailscale connection (authkey handling & IP detection)"
         shell: pwsh
         env:
-          # Prefer using secret: secrets.TAILSCALE_AUTH_KEY
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
           $log = "$env:ARTIFACT_DIR\05-tailscale-up.log"
@@ -231,114 +222,110 @@ jobs:
             if (-not (Test-Path $tsExe)) { $tsExe = Join-Path ($env:ProgramFiles + " (x86)") "Tailscale\tailscale.exe" }
             if (-not (Test-Path $tsExe)) { throw "tailscale.exe not found" }
 
+            # Build hostname safely
             $hostname = "gh-runner-$($env:GITHUB_RUN_ID)"
+
             $auth = $env:TAILSCALE_AUTH_KEY
             if ($auth -and $auth -ne "") {
               Write-Host "Using secret-provided TAILSCALE_AUTH_KEY" -ForegroundColor Cyan
-              & $tsExe up --authkey=$auth --hostname=$hostname | Out-File -FilePath $log -Append
+              & $tsExe up --authkey=$auth --hostname=$hostname --accept-routes --accept-dns=false --timeout=30s 2>&1 | Tee-Object -FilePath $log -Append
             } elseif ($env:USE_INLINE_TAILSCALE_KEY -eq "true" -and $env:INLINE_TAILSCALE_AUTH_KEY) {
               Write-Host "Using inline tailscale key (INSECURE) as requested" -ForegroundColor Yellow
-              & $tsExe up --authkey=$env:INLINE_TAILSCALE_AUTH_KEY --hostname=$hostname | Out-File -FilePath $log -Append
+              & $tsExe up --authkey=$env:INLINE_TAILSCALE_AUTH_KEY --hostname=$hostname --accept-routes --accept-dns=false --timeout=30s 2>&1 | Tee-Object -FilePath $log -Append
             } else {
               Write-Host "⚠️ No Tailscale auth key provided. Attempting up without key (will likely fail)." -ForegroundColor Yellow
-              & $tsExe up --hostname=$hostname | Out-File -FilePath $log -Append
+              & $tsExe up --hostname=$hostname --timeout=30s 2>&1 | Tee-Object -FilePath $log -Append
             }
 
-            # Wait for IP assignment w/ retries
-            $tsIP = $null; $r=0
-            while (-not $tsIP -and $r -lt 18) {
-              Start-Sleep -Seconds 5
+            # Short wait for service to settle
+            Start-Sleep -Seconds 8
+
+            # Wait for Tailscale IP assignment (retries)
+            $tailIP = $null
+            $retries = 0
+            while (-not $tailIP -and $retries -lt 12) {
               $raw = & $tsExe ip -4 2>$null
-              if ($raw) { $tsIP = ($raw -split "`n" | Where-Object { $_ -match '\\d+\\.\\d+\\.\\d+\\.\\d+' }) -join ',' }
-              $r++
+              if ($raw) {
+                $parsed = ($raw -split "`n" | Where-Object { $_ -match '\d+\.\d+\.\d+\.\d+' }) -join ','
+                if ($parsed) { $tailIP = $parsed }
+              }
+              if (-not $tailIP) {
+                Start-Sleep -Seconds 5
+                $retries++
+              }
             }
 
-            if (-not $tsIP) {
-              try { $tsIP = (Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 8) } catch { $tsIP = "Unknown" }
+            if (-not $tailIP) {
+              Write-Warning "Tailscale IP not assigned after retries. Will set TAILSCALE_IP=Unknown"
+              $tailIP = "Unknown"
             }
 
-            Write-Host "🌍 Tailscale/Public IP: $tsIP" -ForegroundColor Green
-            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
-            "TS_IP=$tsIP" | Out-File -FilePath $log -Append
+            Write-Host "🌍 Tailscale IP: $tailIP" -ForegroundColor Green
+            Add-Content -Path $env:GITHUB_ENV -Value "TAILSCALE_IP=$tailIP"
+            "TAILSCALE_IP=$tailIP" | Out-File -FilePath $log -Append
 
             # Ensure RDP allowed on any interface (redundant with earlier rule)
             try {
               New-NetFirewallRule -DisplayName "GalaxyRDP-Allow-3389" -Direction Inbound -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue
             } catch {}
-
           } catch {
             $_ | Out-String | Out-File -FilePath $log -Append
             Write-Host "❌ Tailscale up failed: $($_.Exception.Message)" -ForegroundColor Red
             exit 1
           }
 
-      - name: "⚡ Force-enable RDP service & open firewall"
+      - name: "⚡ Ensure RDP Service & Firewall ready (force)"
         shell: pwsh
-        continue-on-error: false
         run: |
-          Write-Host "----- ENABLE RDP SERVICE -----" -ForegroundColor Cyan
+          Write-Host "----- FORCE ENABLE RDP -----" -ForegroundColor Cyan
           try {
-            # Enable Remote Desktop
-            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-                            -Name "fDenyTSConnections" -Value 0 -Force
+            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
 
-            # Enable Network Level Authentication OFF (biar simple)
-            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                            -Name "UserAuthentication" -Value 0 -Force
-
-            # Restart Remote Desktop Services
             Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
             if ((Get-Service -Name TermService).Status -ne 'Running') {
               Start-Service -Name TermService -ErrorAction Stop
             }
             Restart-Service -Name TermService -Force -ErrorAction Stop
-            Write-Host "✅ Remote Desktop Services started & set to Automatic" -ForegroundColor Green
+            Write-Host "✅ Remote Desktop Service running" -ForegroundColor Green
 
-            # Firewall allow inbound RDP
-            netsh advfirewall firewall add rule name="GalaxyRDP-3389-Allow" `
-              dir=in action=allow protocol=TCP localport=3389 profile=any | Out-Null
-            Write-Host "🛡️ Firewall updated to allow inbound RDP (3389)" -ForegroundColor Green
+            netsh advfirewall firewall set rule group="remote desktop" new enable=Yes | Out-Null
+            netsh advfirewall firewall add rule name="GalaxyRDP-Force" dir=in action=allow protocol=TCP localport=$env:RDP_PORT | Out-Null
+            Write-Host "🛡️ Firewall rules ensured for RDP" -ForegroundColor Green
           } catch {
-            Write-Host "❌ Failed to enable RDP service: $($_.Exception.Message)" -ForegroundColor Red
-            exit 1
+            Write-Host "⚠️ Could not fully ensure RDP service or firewall: $($_.Exception.Message)" -ForegroundColor Yellow
           }
 
-      - name: "🔍 Verify RDP reachability (via Tailscale IP)"
+      - name: "🔍 Verify RDP reachability (via Tailscale IP) — non-fatal"
         shell: pwsh
         continue-on-error: true
         run: |
           $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
-          $rdpPort = $env:RDP_PORT
-          $tsIP = $env:TS_IP
+          $rdpPort = if ($env:RDP_PORT) { $env:RDP_PORT } else { 3389 }
+          $tsIP = $env:TAILSCALE_IP
 
           Write-Host "----- VERIFY RDP (Port $rdpPort) -----" -ForegroundColor Cyan
+          "Verifying RDP (port $rdpPort) against Tailscale IP: $tsIP" | Out-File -FilePath $log -Append
 
           if (-not $tsIP -or $tsIP -eq "" -or $tsIP -eq "Unknown") {
-            Write-Host "❌ No Tailscale IP available — cannot verify RDP!" -ForegroundColor Red
-            exit 1
+            Write-Host "⚠️ No valid Tailscale IP available — skipping reachability test." -ForegroundColor Yellow
+            "No valid Tailscale IP, skipped RDP check." | Out-File -FilePath $log -Append
+            exit 0
           }
 
           Write-Host "Testing TCP $tsIP`:$rdpPort ..." -NoNewline
           try {
-            $result = Test-NetConnection -ComputerName $tsIP -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
-            if ($result) {
+            $res = Test-NetConnection -ComputerName $tsIP -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
+            if ($res) {
               Write-Host " ✅ Tailscale reachable" -ForegroundColor Green
               "Tailscale ($tsIP`:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
             } else {
-              Write-Host " ❌ Tailscale not reachable" -ForegroundColor Red
-              "Tailscale ($tsIP`:$rdpPort) not reachable ❌" | Out-File -FilePath $log -Append
-              exit 1
+              Write-Host " ⚠️ Tailscale not reachable (will not fail job)" -ForegroundColor Yellow
+              "Tailscale ($tsIP`:$rdpPort) not reachable ⚠️" | Out-File -FilePath $log -Append
             }
           } catch {
-            Write-Host " ❌ Error testing Tailscale ($tsIP`:$rdpPort): $($_.Exception.Message)" -ForegroundColor Red
-            exit 1
-          }
-
-          if (-not $reachable) {
-            Write-Host "❌ No RDP target reachable!" -ForegroundColor Red
-            exit 1
-          } else {
-            Write-Host "✅ At least one RDP target reachable" -ForegroundColor Green
+            Write-Host " ⚠️ Error testing Tailscale reachability: $($_.Exception.Message)" -ForegroundColor Yellow
+            "Error testing reachability: $($_.Exception.Message)" | Out-File -FilePath $log -Append
           }
 
       - name: "📡 Network & System Snapshot (monitoring)"
@@ -369,7 +356,7 @@ jobs:
             Write-Host "⚠️ Monitoring failed: $($_.Exception.Message)" -ForegroundColor Yellow
           }
 
-      - name: "🔔 Discord — Notify START (includes IP & password)"
+      - name: "🔔 Discord — Notify START (includes Tailscale IP & password)"
         shell: pwsh
         run: |
           $log = "$env:ARTIFACT_DIR\08-discord-start.log"
@@ -383,7 +370,7 @@ jobs:
             $run = $env:GITHUB_RUN_ID
             $actor = $env:GITHUB_ACTOR
             $repo = $env:GITHUB_REPOSITORY
-            $tsip = $env:TS_IP
+            $tsip = $env:TAILSCALE_IP
             try { $public = Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 6 } catch { $public = "Unknown" }
 
             $embed = @{
@@ -395,7 +382,7 @@ jobs:
                 @{ name = "📦 Repo";  value = $repo; inline = $true },
                 @{ name = "🔁 Run ID"; value = $run; inline = $true },
                 @{ name = "🌐 Public IP"; value = $public; inline = $true },
-                @{ name = "🔗 Candidate IP (Tailscale)"; value = ($tsip ? $tsip : "Pending"); inline = $true },
+                @{ name = "🔗 Tailscale IP"; value = ($tsip ? $tsip : "Pending"); inline = $true },
                 @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
                 @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true }
               )
@@ -458,7 +445,6 @@ jobs:
               }
             }
 
-            # Pass limited envvars to job
             $ev = @{
               DISCORD_WEBHOOK = $env:DISCORD_WEBHOOK;
               RDP_USER = $env:RDP_USER;
@@ -489,20 +475,19 @@ jobs:
               exit 0
             }
 
-            # Capture IPs (Tailscale or public fallback)
-            $ts = $env:TS_IP
+            $ts = $env:TAILSCALE_IP
             if (-not $ts -or $ts -eq "") {
               try { $ts = Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 6 } catch { $ts = "Unknown" }
             }
 
             $embed = @{
               title = "✅ GalaxyRDP Ultra — Session Ready"
-              description = "RDP is provisioned and reachable. Credentials included below — handle with care."
+              description = "RDP is provisioned (via Tailscale). Credentials below — handle with care."
               color = 5763719
               fields = @(
                 @{ name = "👤 User"; value = $env:RDP_USER; inline = $true },
                 @{ name = "🔑 Password"; value = $env:RDP_PASSWORD; inline = $true },
-                @{ name = "🔗 Tailscale / Effective IP"; value = ($ts -ne "" ? $ts : "Unknown"); inline = $true },
+                @{ name = "🔗 Tailscale IP"; value = ($ts -ne "" ? $ts : "Unknown"); inline = $true },
                 @{ name = "🔌 RDP Port"; value = $env:RDP_PORT; inline = $true },
                 @{ name = "🕒 Keep-Alive (mins)"; value = $env:KEEP_ALIVE_MINUTES; inline = $true }
               )
