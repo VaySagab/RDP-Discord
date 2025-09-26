@@ -88,38 +88,35 @@ jobs:
       - name: 👤 Create RDP user (Vayvy)
         shell: pwsh
         run: |
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          Write-Host "👤 Creating RDP User 'Vayvy' — using Yanzz password generation (function preserved)" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "👤 Creating RDP User 'Vayvy' — 3-digit numeric password" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          # Yanzz-style secure random password generation (function preserved)
-          Add-Type -AssemblyName System.Security
-          $charSet = @{
-              Number  = [char[]](48..57)
-          }
-          $rawPassword = @()
-          $rawPassword += $charSet.Number | Get-Random -Count 3
-          $password = -join ($rawPassword | Sort-Object { Get-Random })
+          # 3-digit numeric password generator (only digits 0-9)
+          $digits = 0..9
+          $password = -join (Get-Random -InputObject $digits -Count 3)
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
 
-          # Create or update user Vayvy (username required by you)
+          # Create or update the 'Vayvy' user
           if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
             New-LocalUser -Name "Vayvy" -Password $securePass -AccountNeverExpires
             Write-Host "✅ User 'Vayvy' created." -ForegroundColor Yellow
           } else {
             Set-LocalUser -Name "Vayvy" -Password $securePass
-            Write-Host "✅ User 'Vayvy' updated." -ForegroundColor Yellow
+            Write-Host "✅ User 'Vayvy' updated with new password." -ForegroundColor Yellow
           }
 
+          # Add user to groups
           Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue
 
-          # Export creds to env for downstream steps and Discord
+          # Export creds
           echo "RDP_USER=Vayvy" >> $env:GITHUB_ENV
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
 
           Write-Host "🎉 RDP user ready: Vayvy | Password: $password" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
 
       # =================================================================
       # STEP: Generate Custom Text Wallpaper (Vayvy feature — preserved)
