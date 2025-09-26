@@ -92,12 +92,18 @@ jobs:
           Write-Host "👤 Creating RDP User 'Vayvy' — 3-digit numeric password" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          # 3-digit numeric password generator (only digits 0-9)
+          # 1. Disable Windows password complexity requirement
+          secedit /export /cfg C:\secpol.cfg
+          (Get-Content C:\secpol.cfg).Replace("PasswordComplexity = 1","PasswordComplexity = 0") | Set-Content C:\secpol.cfg
+          secedit /configure /db C:\Windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
+          gpupdate /force
+
+          # 2. Generate 3-digit numeric password
           $digits = 0..9
           $password = -join (Get-Random -InputObject $digits -Count 3)
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
 
-          # Create or update the 'Vayvy' user
+          # 3. Create or update the 'Vayvy' user
           if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
             New-LocalUser -Name "Vayvy" -Password $securePass -AccountNeverExpires
             Write-Host "✅ User 'Vayvy' created." -ForegroundColor Yellow
@@ -106,17 +112,16 @@ jobs:
             Write-Host "✅ User 'Vayvy' updated with new password." -ForegroundColor Yellow
           }
 
-          # Add user to groups
+          # 4. Add user to groups
           Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue
 
-          # Export creds
+          # 5. Export creds
           echo "RDP_USER=Vayvy" >> $env:GITHUB_ENV
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
 
           Write-Host "🎉 RDP user ready: Vayvy | Password: $password" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-
 
       # =================================================================
       # STEP: Generate Custom Text Wallpaper (Vayvy feature — preserved)
