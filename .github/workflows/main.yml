@@ -1,51 +1,22 @@
 name: 🌌 GalaxyRDP Ultra by VayVy [12h Keep-Alive | Discord Integrated]
 
-# ===================================================================
-# GalaxyRDP Ultra - Longform Workflow (Upgraded)
-# - Added: Resource Auto Alert (CPU/RAM) during 12h keep-alive
-# - Added: Dynamic wallpaper watermark in TOP-RIGHT (repo / run / actor)
-# - Added: Single Keep-Alive step that runs for KEEP_ALIVE_MINUTES (default 720)
-# - Preserves original theme, banners, emojis, and step ordering (sequential)
-# ===================================================================
-
 on:
   workflow_dispatch:
 
 jobs:
-  rdp-server:
+  rdp-by-vayvy:
     runs-on: windows-latest
-    timeout-minutes: 720   # 12 jam
+    timeout-minutes: 720
 
     env:
-      # ----------------------------------------------------------------
-      # DO NOT CHANGE: Discord webhook as requested by user.
-      # If you want to move this to secrets, consider using:
-      #   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-      # ----------------------------------------------------------------
       DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
-
-      # ----------------------------------------------------------------
-      # Keep alive configuration
-      # ----------------------------------------------------------------
       KEEP_ALIVE_MINUTES: 720
-
-      # ----------------------------------------------------------------
-      # Misc defaults (documented)
-      # ----------------------------------------------------------------
-      EMULATOR_BOOT_WAIT_SECONDS: 90
-      EMULATOR_POLL_RETRIES: 6
-      DOWNLOAD_TRIES: 4
-      MIN_VALID_BYTES: 2000000   # 2MB basic sanity
 
     steps:
 
-      # =================================================================
-      # Intro / Banner (visual)
-      # =================================================================
       - name: ✨ Intro Job metadata & friendly banner
         shell: pwsh
         run: |
-          Write-Host ""
           Write-Host "════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
           Write-Host "🌌 GalaxyRDP Ultra - PRO Mode (Verbose Logging, Monitoring, Discord)" -ForegroundColor Green
           Write-Host "Repository : $env:GITHUB_REPOSITORY" -ForegroundColor Cyan
@@ -53,78 +24,85 @@ jobs:
           Write-Host "Actor      : $env:GITHUB_ACTOR" -ForegroundColor Cyan
           Write-Host "Start Time : $(Get-Date -Format o)" -ForegroundColor Cyan
           Write-Host "════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-          Write-Host ""
 
       # =================================================================
-      # Step 1 - Enable RDP (safe)
+      # Hybrid Step 1 - Enable RDP (Yanzz function, Vayvy style)
       # =================================================================
       - name: ⚙️ Enable RDP
         shell: pwsh
         run: |
-          Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "⚙️ Enabling Remote Desktop Protocol (RDP)" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          try {
-            Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -ErrorAction Stop
-            Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
-            Restart-Service -Name TermService -Force -ErrorAction SilentlyContinue
-            Write-Host "✅ RDP enabled successfully!" -ForegroundColor Yellow
-          } catch {
-            Write-Host "⚠️ Warning: enabling RDP returned an error (non-fatal): $_" -ForegroundColor Yellow
-          }
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host ""
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+          netsh advfirewall firewall delete rule name="RDP-Tailscale" | Out-Null
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 | Out-Null
+          Restart-Service -Name TermService -Force
 
       # =================================================================
-      # Step 2 - Create RDP User (Vayvy) with 3-digit forced password
+      # Hybrid Step 2 - Create RDP User (Yanzz function, Vayvy username)
       # =================================================================
       - name: 👤 Create RDP user (Vayvy)
         shell: pwsh
         run: |
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          Write-Host "👤 Creating RDP User 'Vayvy' (forced 3-digit password)" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          # 1) Disable password complexity
-          secedit /export /cfg C:\secpol.cfg
-          (Get-Content C:\secpol.cfg).ForEach{
-            $_ -replace 'PasswordComplexity = 1', 'PasswordComplexity = 0'
-          } | Set-Content C:\secpol.cfg
-          secedit /configure /db C:\Windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
-          gpupdate /force | Out-Null
-          Write-Host "⚙️ Password complexity disabled (allow weak password)" -ForegroundColor Yellow
-
-          # 2) Generate 3-digit password
-          $password = Get-Random -Minimum 100 -Maximum 999 | ForEach-Object { $_.ToString() }
-
-          # 3) Create or update user
+          Add-Type -AssemblyName System.Security
+          $charSet = @{
+              Upper   = [char[]](65..90)
+              Lower   = [char[]](97..122)
+              Number  = [char[]](48..57)
+          }
+          $rawPassword = @()
+          $rawPassword += $charSet.Upper | Get-Random -Count 4
+          $rawPassword += $charSet.Lower | Get-Random -Count 4
+          $rawPassword += $charSet.Number | Get-Random -Count 4
+          $password = -join ($rawPassword | Sort-Object { Get-Random })
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
             New-LocalUser -Name "Vayvy" -Password $securePass -AccountNeverExpires
-            Write-Host "✅ User 'Vayvy' created."
           } else {
             Set-LocalUser -Name "Vayvy" -Password $securePass
-            Write-Host "✅ User 'Vayvy' updated."
           }
-
-          Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue
-
+          Add-LocalGroupMember -Group "Administrators" -Member "Vayvy"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy"
           echo "RDP_USER=Vayvy" >> $env:GITHUB_ENV
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
 
-          Write-Host "🎉 RDP user ready: Vayvy | Password: $password" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      # =================================================================
+      # Hybrid Step 3 - Install Tailscale (Yanzz function, Vayvy style)
+      # =================================================================
+      - name: 🌐 Install Tailscale
+        shell: pwsh
+        run: |
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Remove-Item $installerPath -Force
 
       # =================================================================
-      # STEP: Generate Custom Text Wallpaper (with top-right watermark)
-      # This step creates a 1920x1080 JPEG with centered main text and
-      # a small dynamic watermark in the TOP-RIGHT corner.
+      # Hybrid Step 4 - Establish Tailscale Connection (Yanzz function)
       # =================================================================
+      - name: 🔗 Connect to Tailscale
+        shell: pwsh
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname "GalaxyRDP-$env:GITHUB_RUN_ID"
+          $tsIP = $null; $retries = 0
+          while (-not $tsIP -and $retries -lt 10) {
+              $tsIP = & $tsExe ip -4
+              Start-Sleep -Seconds 5
+              $retries++
+          }
+          if (-not $tsIP) { $tsIP = "Unknown" }
+          echo "TS_IP=$tsIP" >> $env:GITHUB_ENV
+
       # =================================================================
-      # Step 6: Generate Custom Text Wallpaper
+      # The rest → all original GalaxyRDP Ultra by Vayvy features (unchanged)
       # =================================================================
+
+      # Wallpaper, Optimizations, Network Snapshot, Discord Notifications, Keep-Alive, Monitoring, Final banners
+      # (Same as in Vayvy script, not removed, just appended here)
       - name: 🖼️ Generate Custom Text Wallpaper 
         shell: pwsh
         run: |
@@ -178,87 +156,6 @@ jobs:
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
-      # =================================================================
-      # Step 3 - Tailscale install (kept minimal)
-      # =================================================================
-      # =================================================================
-      # Step 3 - Install Tailscale (simplified)
-      # =================================================================
-      - name: 🌐 Install Tailscale
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🌐 Installing Tailscale (simplified)" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-
-          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
-          $installerPath = "$env:TEMP\tailscale.msi"
-
-          try {
-            Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath -UseBasicParsing
-            Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
-            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-            Write-Host "✅ Tailscale installed successfully." -ForegroundColor Yellow
-          } catch {
-            Write-Host "❌ Tailscale installation failed: $_" -ForegroundColor Red
-          }
-
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host ""
-
-      # =================================================================
-      # Step 4 - Establish Tailscale connection
-      # =================================================================
-      - name: 🔗 Connect to Tailscale
-        shell: pwsh
-        env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-        run: |
-          Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 Establishing Tailscale Connection" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-
-          $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
-
-          try {
-            & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname "GalaxyRDP-${env:GITHUB_RUN_ID}" --accept-routes
-
-            # Wait for IPv4 assignment
-            $tsIP = $null
-            $retries = 0
-            while (-not $tsIP -and $retries -lt 10) {
-              $out = & $tsExe ip -4 2>$null
-              if ($out) { $tsIP = ($out | Select-Object -First 1) }
-              Start-Sleep -Seconds 5
-              $retries++
-            }
-
-            if ($tsIP) {
-              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
-              Write-Host "🌍 Tailscale IP: $tsIP" -ForegroundColor Yellow
-
-              # Allow RDP over Tailscale interface
-              New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
-            } else {
-              Write-Host "⚠️ Tailscale connected but IP not found." -ForegroundColor Yellow
-              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
-            }
-          } catch {
-            Write-Host "❌ Failed to connect Tailscale: $_" -ForegroundColor Red
-            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
-          }
-
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host ""
-
-      # =================================================================
-      # Step 5 - System tweaks (safe & non-destructive)
-      # =================================================================
-      # =================================================================
-      # Step 5: Optimize Windows for RDP
-      # =================================================================
       # =================================================================
       # Step 5: Optimize Windows
       # =================================================================
