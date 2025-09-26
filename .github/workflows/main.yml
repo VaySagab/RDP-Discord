@@ -303,38 +303,35 @@ jobs:
             exit 1
           }
 
-      - name: "🔍 Verify RDP reachability (via Tailscale IP or Public IP)"
+      - name: "🔍 Verify RDP reachability (via Tailscale IP)"
         shell: pwsh
         continue-on-error: false
         run: |
           $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
           $rdpPort = $env:RDP_PORT
-          $targets = @()
-
-          if ($env:TAILSCALE_IP) { $targets += @{ Name = "Tailscale"; IP = $env:TAILSCALE_IP } }
-          if ($env:PUBLIC_IP)    { $targets += @{ Name = "Public";    IP = $env:PUBLIC_IP    } }
+          $tsIP = $env:TS_IP
 
           Write-Host "----- VERIFY RDP (Port $rdpPort) -----" -ForegroundColor Cyan
 
-          $reachable = $false
-          foreach ($t in $targets) {
-            $name = $t.Name
-            $ip   = $t.IP
+          if (-not $tsIP -or $tsIP -eq "" -or $tsIP -eq "Unknown") {
+            Write-Host "❌ No Tailscale IP available — cannot verify RDP!" -ForegroundColor Red
+            exit 1
+          }
 
-            Write-Host "Testing TCP $ip`:$rdpPort ..." -NoNewline
-            try {
-              $result = Test-NetConnection -ComputerName $ip -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
-              if ($result) {
-                Write-Host " ✅ $name reachable" -ForegroundColor Green
-                "$name ($ip`:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
-                $reachable = $true
-              } else {
-                Write-Host " ❌ $name not reachable" -ForegroundColor Red
-                "$name ($ip`:$rdpPort) not reachable ❌" | Out-File -FilePath $log -Append
-              }
-            } catch {
-              Write-Host " ❌ Error testing $name ($ip`:$rdpPort): $($_.Exception.Message)" -ForegroundColor Red
+          Write-Host "Testing TCP $tsIP`:$rdpPort ..." -NoNewline
+          try {
+            $result = Test-NetConnection -ComputerName $tsIP -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
+            if ($result) {
+              Write-Host " ✅ Tailscale reachable" -ForegroundColor Green
+              "Tailscale ($tsIP`:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
+            } else {
+              Write-Host " ❌ Tailscale not reachable" -ForegroundColor Red
+              "Tailscale ($tsIP`:$rdpPort) not reachable ❌" | Out-File -FilePath $log -Append
+              exit 1
             }
+          } catch {
+            Write-Host " ❌ Error testing Tailscale ($tsIP`:$rdpPort): $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
           }
 
           if (-not $reachable) {
