@@ -318,33 +318,77 @@ jobs:
             exit 1
           }
 
-      - name: "🔍 Verify RDP reachability (via Tailscale IP) — non-fatal"
+      - name: "🛠 Finalize & Verify RDP via Tailscale"
         shell: pwsh
-        continue-on-error: true
         run: |
-          $log = "$env:ARTIFACT_DIR\06-verify-rdp.log"
-          $rdpPort = $env:RDP_PORT
-          $tsIP = $env:TAILSCALE_IP
-          Write-Host "----- VERIFY RDP (Port $rdpPort) -----"
-          if (-not $tsIP -or $tsIP -eq "" -or $tsIP -eq "Unknown") {
-            Write-Host "⚠️ No valid Tailscale IP available — skipping reachability test."
-            "No valid Tailscale IP, skipped RDP check." | Out-File -FilePath $log -Append
-            exit 0
+          Write-Host "----- FINAL RDP VALIDATION -----"
+
+          # 1. Pastikan TermService hidup
+          try {
+            Set-Service -Name TermService -StartupType Automatic -ErrorAction Stop
+            if ((Get-Service -Name TermService).Status -ne 'Running') {
+              Start-Service -Name TermService -ErrorAction Stop
+            }
+            Write-Host "✅ TermService running."
+          } catch {
+            Write-Host "❌ Failed to start TermService: $($_.Exception.Message)"
           }
 
-          Write-Host "Testing TCP $tsIP`:$rdpPort ..." -NoNewline
+          # 2. Force buka firewall port 3389 (pakai dua metode)
           try {
-            $res = Test-NetConnection -ComputerName $tsIP -Port $rdpPort -WarningAction SilentlyContinue -InformationLevel Quiet
-            if ($res) {
-              Write-Host " ✅ Tailscale reachable"
-              "Tailscale ($tsIP`:$rdpPort) reachable ✅" | Out-File -FilePath $log -Append
+            netsh advfirewall firewall delete rule name="Allow RDP 3389" 2>$null
+            netsh advfirewall firewall add rule name="Allow RDP 3389" dir=in action=allow protocol=TCP localport=3389 profile=any
+            New-NetFirewallRule -DisplayName "Allow RDP 3389 TS" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any -ErrorAction SilentlyContinue
+            Write-Host "✅ Firewall rules applied."
+          } catch {
+            Write-Host "⚠️ Firewall config error: $($_.Exception.Message)"
+          }
+
+          # 3. Tes port 3389 lokal
+          $localCheck = Test-NetConnection -ComputerName 127.0.0.1 -Port 3389 -WarningAction SilentlyContinue
+          if ($localCheck.TcpTestSucceeded) {
+            Write-Host "✅ Local port 3389 is listening."
+          } else {
+            Write-Host "❌ Local port 3389 NOT listening!"
+          }
+
+          # 4. Tes port 3389 via Tailscale IP
+          $tsIP = $env:TAILSCALE_IP
+          if ($tsIP -and $tsIP -ne "Unknown") {
+            $tsCheck = Test-NetConnection -ComputerName $tsIP -Port 3389 -WarningAction SilentlyContinue
+            if ($tsCheck.TcpTestSucceeded) {
+              Write-Host "✅ RDP via Tailscale ($tsIP:3389) reachable."
+              $tsStatus = "Reachable ✅"
             } else {
-              Write-Host " ⚠️ Tailscale not reachable (ignored)"
-              "Tailscale ($tsIP`:$rdpPort) not reachable ⚠️" | Out-File -FilePath $log -Append
+              Write-Host "⚠️ RDP via Tailscale ($tsIP:3389) not reachable."
+              $tsStatus = "Not reachable ⚠️"
+            }
+          } else {
+            Write-Host "⚠️ No valid Tailscale IP detected."
+            $tsStatus = "Unknown ⚠️"
+          }
+
+          # 5. Kirim hasil ke Discord
+          try {
+            $hook = $env:DISCORD_WEBHOOK
+            if ($hook) {
+              $embed = @{
+                title = "🛠 Final RDP Validation"
+                description = "GalaxyRDP Ultra connectivity check"
+                color = 8311585
+                fields = @(
+                  @{ name = "Service"; value = "TermService: Running ✅"; inline = $true },
+                  @{ name = "Local Port 3389"; value = if ($localCheck.TcpTestSucceeded) { "Listening ✅" } else { "Not Listening ❌" }; inline = $true },
+                  @{ name = "Tailscale RDP"; value = "$tsIP : $tsStatus"; inline = $false }
+                )
+                footer = @{ text = "Validation @ $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" }
+              }
+              $payload = @{ username = "Vayvy RDP Bot"; embeds = @($embed) } | ConvertTo-Json -Depth 6
+              Invoke-RestMethod -Uri $hook -Method Post -Body $payload -ContentType 'application/json'
+              Write-Host "📡 Validation sent to Discord."
             }
           } catch {
-            Write-Host " ⚠️ Error testing Tailscale reachability: $($_.Exception.Message)"
-            "Error testing reachability: $($_.Exception.Message)" | Out-File -FilePath $log -Append
+            Write-Host "⚠️ Discord validation failed: $($_.Exception.Message)"
           }
 
       - name: "📡 Minimal system snapshot (OS/CPU/Mem/Disk/PublicIP/Tailscale status)"
