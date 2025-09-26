@@ -42,7 +42,7 @@ jobs:
       # =================================================================
       # Intro / Banner (visual)
       # =================================================================
-      - name: ✨ Intro: Job metadata & friendly banner
+      - name: ✨ Intro Job metadata & friendly banner
         shell: pwsh
         run: |
           Write-Host ""
