@@ -57,11 +57,11 @@ jobs:
             try {
               # Enable RDP
               Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-                               -Name "fDenyTSConnections" -Value 0 -Force
+                -Name "fDenyTSConnections" -Value 0 -Force
               Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                               -Name "UserAuthentication" -Value 0 -Force
+                -Name "UserAuthentication" -Value 0 -Force
               Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                               -Name "SecurityLayer" -Value 0 -Force
+                -Name "SecurityLayer" -Value 0 -Force
 
               # Firewall idempotent rule
               $ruleName = "GalaxyRDP-3389"
@@ -114,11 +114,17 @@ jobs:
               }
 
               # Wait for IPv4 assignment
-              $tailIP = $null; $tries = 0
+              $tailIP = $null
+              $tries = 0
               while (-not $tailIP -and $tries -lt 12) {
                 $raw = & $tsExe ip -4 2>$null
-                if ($raw) { $tailIP = ($raw -split "`n" | Where-Object { $_ -match '\d+\.\d+\.\d+\.\d+' }) -join ',' }
-                if (-not $tailIP) { Start-Sleep -Seconds 5; $tries++ }
+                if ($raw) {
+                  $tailIP = ($raw -split "`n" | Where-Object { $_ -match '\d+\.\d+\.\d+\.\d+' }) -join ','
+                }
+                if (-not $tailIP) {
+                  Start-Sleep -Seconds 5
+                  $tries++
+                }
               }
               if (-not $tailIP) { $tailIP = "Unknown" }
 
@@ -126,11 +132,10 @@ jobs:
               Add-Content -Path $env:GITHUB_ENV -Value "TAILSCALE_IP=$tailIP"
 
               # Ensure firewall rule for RDP (again, redundancy)
-              try { 
+              try {
                 New-NetFirewallRule -DisplayName "Galaxy-Allow-3389" -Direction Inbound `
-                  -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue 
+                  -Protocol TCP -LocalPort $env:RDP_PORT -Action Allow -Profile Any -ErrorAction SilentlyContinue
               } catch {}
-
             } catch {
               Write-Host "❌ Install-TailscaleAndConnect failed: $($_.Exception.Message)" -ForegroundColor Red
               throw
@@ -149,7 +154,10 @@ jobs:
                 "Microsoft.MicrosoftTeams","Microsoft.WindowsFeedbackHub"
               )
               foreach ($app in $apps) {
-                try { Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop; Write-Host "🗑 Removed $app" } catch {}
+                try {
+                  Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction Stop
+                  Write-Host "🗑 Removed $app"
+                } catch {}
               }
 
               # Disable telemetry & services
@@ -177,7 +185,6 @@ jobs:
           Install-RDPAndFirewall
           Optimize-System
 
-          # Pick Tailscale authkey
           $authKey = $env:TAILSCALE_AUTH_KEY
           if (-not $authKey -or $authKey -eq "") {
             if ($env:USE_INLINE_TAILSCALE_KEY -eq "true" -and $env:INLINE_TAILSCALE_AUTH_KEY) {
@@ -186,7 +193,6 @@ jobs:
           }
 
           Install-TailscaleAndConnect -AuthKey $authKey
-
 
       - name: "👤 Create local RDP user (Vayvy) — fixed password"
         shell: pwsh
