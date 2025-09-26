@@ -65,7 +65,7 @@ jobs:
           Write-Host "⚙️ Enabling Remote Desktop Protocol (RDP) — (Yanzz function)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
-          # Yanzz-style functional commands (unchanged logic)
+          # Enable RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
             -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
@@ -73,12 +73,13 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
             -Name "SecurityLayer" -Value 0 -Force
 
-          netsh advfirewall firewall delete rule name="RDP-Tailscale" | Out-Null
-          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 | Out-Null
+          # Firewall RDP semua profile
+          netsh advfirewall firewall delete rule name="RDP-3389" | Out-Null
+          netsh advfirewall firewall add rule name="RDP-3389" dir=in action=allow protocol=TCP localport=3389 profile=any | Out-Null
 
           Restart-Service -Name TermService -Force -ErrorAction SilentlyContinue
 
-          Write-Host "✅ RDP enable commands executed (Yanzz function)." -ForegroundColor Yellow
+          Write-Host "✅ RDP enabled & firewall opened on all profiles." -ForegroundColor Yellow
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
@@ -189,9 +190,7 @@ jobs:
           Write-Host "✅ Tailscale installer executed (Yanzz function)." -ForegroundColor Yellow
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
-
-      # Step 4 - Connect to Tailscale (Vayvy theme + stable logic)
-      # =================================================================
+          
       - name: 🔗 Connect to Tailscale
         shell: pwsh
         env:
@@ -199,7 +198,7 @@ jobs:
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🔗 Establishing Tailscale Connection (Vayvy themed)" -ForegroundColor Green
+          Write-Host "🔗 Establishing Tailscale Connection (IPv4 → IPv6 → Public Fallback)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
@@ -209,34 +208,31 @@ jobs:
 
           if (Test-Path $tsExe) {
             try {
-              # Bring up Tailscale with auth key and unique hostname
               & $tsExe up --authkey="$($env:TAILSCALE_AUTH_KEY)" --hostname="gh-runner-$($env:GITHUB_RUN_ID)"
 
-              # Wait until IP is assigned
+              # Try IPv4 → IPv6 → fallback Public IP
               $tsIP = $null
               $retries = 0
-              while (-not $tsIP -and $retries -lt 10) {
+              while (-not $tsIP -and $retries -lt 15) {
                 Start-Sleep -Seconds 5
                 $tsIP = & $tsExe ip -4 | Select-Object -First 1
+                if (-not $tsIP) { $tsIP = & $tsExe ip -6 | Select-Object -First 1 }
                 $retries++
               }
 
-              if ($tsIP) {
-                Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
-                Write-Host "🌍 Tailscale IP acquired: $tsIP" -ForegroundColor Yellow
-
-                # Allow RDP over Tailscale only
-                New-NetFirewallRule -DisplayName "RDP over Tailscale" `
-                  -Direction Inbound -Protocol TCP -LocalPort 3389 `
-                  -Action Allow -Profile Any -InterfaceAlias "Tailscale*" `
-                  -ErrorAction SilentlyContinue
-              } else {
-                Write-Error "⚠️ Tailscale connected but no IP assigned."
-                Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
-                exit 1
+              if (-not $tsIP) {
+                try { $tsIP = (Invoke-RestMethod -Uri "https://ifconfig.me/ip" -TimeoutSec 10) } catch { $tsIP = "Unknown" }
               }
+
+              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
+              Write-Host "🌍 Effective RDP IP: $tsIP" -ForegroundColor Yellow
+
+              # Allow RDP over Tailscale or fallback
+              New-NetFirewallRule -DisplayName "RDP over AnyNet" `
+                -Direction Inbound -Protocol TCP -LocalPort 3389 `
+                -Action Allow -Profile Any -ErrorAction SilentlyContinue
             } catch {
-              Write-Error "⚠️ Tailscale up failed: $_"
+              Write-Error "⚠️ Tailscale connection failed: $_"
               Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
               exit 1
             }
@@ -528,8 +524,11 @@ jobs:
           $repo  = $env:GITHUB_REPOSITORY
           $runId = $env:GITHUB_RUN_ID
 
-          # Ambil error terakhir
-          $lastError = if ($Error.Count -gt 0) { ($Error[0].ToString() -replace '\r|\n', ' ') } else { "No error details captured." }
+          # Ambil error terakhir, potong max 300 karakter biar aman
+          $lastError = if ($Error.Count -gt 0) { 
+            $err = ($Error[0].ToString() -replace '\r|\n', ' ')
+            if ($err.Length -gt 300) { $err.Substring(0,300) + "..." } else { $err }
+          } else { "No error details captured." }
 
           $embed = @{
             title = "❌ GalaxyRDP Ultra — Session Failed"
