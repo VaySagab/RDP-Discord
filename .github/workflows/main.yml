@@ -224,7 +224,7 @@ jobs:
               [DllImport("user32.dll",SetLastError=true)]
               public static extern bool SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);
             }
-            "@
+          "@
             [Win32]::SystemParametersInfo(20,0,$out,3) | Out-Null
 
             "Wallpaper generated: $out" | Out-File -FilePath $log -Append
