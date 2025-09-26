@@ -139,93 +139,60 @@ jobs:
       # This step creates a 1920x1080 JPEG with centered main text and
       # a small dynamic watermark in the TOP-RIGHT corner.
       # =================================================================
-      - name: 🖼️ Generate Custom Text Wallpaper
+      # =================================================================
+      # Step 6: Generate Custom Text Wallpaper
+      # =================================================================
+      - name: 🖼️ Generate Custom Text Wallpaper (STEP 6)
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🖼️ [WALLPAPER] Generating & applying custom wallpaper with centered text + top-right watermark" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-
-          Add-Type -AssemblyName System.Drawing
-
-          # Canvas size - adjust if you target a different resolution
-          $width = 1920
-          $height = 1080
-
-          # Create bitmap and graphics object
-          $bmp = New-Object System.Drawing.Bitmap $width, $height
-          $g = [System.Drawing.Graphics]::FromImage($bmp)
-
-          # High quality rendering settings
-          $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-          $g.Clear([System.Drawing.Color]::Black)
-
-          # Main centered text (keep original style)
-          $text = "🌌 GalaxyRDP Ultra by VayVy 🚀"
-
-          # Choose font - Consolas is available on Windows images; fallback included
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "🖼️ [STEP 6] Generating Custom Wallpaper" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
-            $font = New-Object System.Drawing.Font "Consolas",72,[System.Drawing.FontStyle]::Bold
-          } catch {
-            $font = New-Object System.Drawing.Font "Arial",72,[System.Drawing.FontStyle]::Bold
-          }
+            Add-Type -AssemblyName System.Drawing
+            $width = 1920; $height = 1080
+            $bmp = New-Object System.Drawing.Bitmap $width, $height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+            $g.Clear([System.Drawing.Color]::Black)
 
-          # Brush and shadow
-          $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255,50,205,50)) # Lime-ish
-          $shadowBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(180,0,0,0))
+            # Main text in center
+            $mainText = "🌌 GalaxyRDP Ultra by VayVy 🚀"
+            $fontMain = New-Object System.Drawing.Font("Consolas", 72, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+            $brushMain = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Lime)
+            $size = $g.MeasureString($mainText, $fontMain)
+            $x = ($width - $size.Width) / 2
+            $y = ($height - $size.Height) / 2
+            $g.DrawString($mainText, $fontMain, $brushMain, $x, $y)
 
-          # Measure text
-          $size = $g.MeasureString($text, $font)
-          $x = [math]::Max(10, ($width - $size.Width) / 2)
-          $y = [math]::Max(10, ($height - $size.Height) / 2)
+            # Watermark (top-right)
+            $wmText = "$($env:GITHUB_REPOSITORY) | Run $($env:GITHUB_RUN_ID) | $($env:GITHUB_ACTOR)"
+            $wmFont = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $wmSize = $g.MeasureString($wmText, $wmFont)
+            $wmX = $width - $wmSize.Width - 20
+            $wmY = 20
+            $g.DrawString($wmText, $wmFont, [System.Drawing.Brushes]::Gray, $wmX, $wmY)
 
-          # Draw shadow (offset)
-          $g.DrawString($text, $font, $shadowBrush, $x+4, $y+4)
+            # Footer (bottom-right)
+            $footer = "⚡ Powered by GitHub Actions"
+            $footerFont = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $footerSize = $g.MeasureString($footer, $footerFont)
+            $fx = $width - $footerSize.Width - 20
+            $fy = $height - $footerSize.Height - 20
+            $g.DrawString($footer, $footerFont, [System.Drawing.Brushes]::DarkGray, $fx, $fy)
 
-          # Draw main text
-          $g.DrawString($text, $font, $brush, $x, $y)
-
-          # Dynamic watermark in TOP-RIGHT corner
-          $wmText = "Repository: $($env:GITHUB_REPOSITORY)  |  Run: $($env:GITHUB_RUN_ID)  |  Actor: $($env:GITHUB_ACTOR)"
-          try {
-            $wmFont = New-Object System.Drawing.Font "Arial",18,[System.Drawing.FontStyle]::Regular
-          } catch {
-            $wmFont = New-Object System.Drawing.Font "Segoe UI",18,[System.Drawing.FontStyle]::Regular
-          }
-          $wmSize = $g.MeasureString($wmText, $wmFont)
-          $wmX = [math]::Max(10, $width - $wmSize.Width - 20)
-          $wmY = 20
-
-          # Slightly translucent watermark
-          $wmBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(200,200,200,200))
-          $g.DrawString($wmText, $wmFont, $wmBrush, $wmX, $wmY)
-
-          # Optional: add small footer unchanged
-          $footerFont = New-Object System.Drawing.Font "Arial",18,[System.Drawing.FontStyle]::Regular
-          $footerText = "GalaxyRDP Ultra • Generated on $(Get-Date -Format o)"
-          $fsize = $g.MeasureString($footerText, $footerFont)
-          $g.DrawString($footerText, $footerFont, [System.Drawing.Brushes]::Gray, ($width - $fsize.Width) - 20, $height - $fsize.Height - 20)
-
-          # Save file to user's Pictures folder
-          $outPath = Join-Path $env:USERPROFILE "Pictures\galaxyrdp-wallpaper.jpg"
-          $dir = Split-Path $outPath -Parent
-          if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }
-
-          $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-
-          # Apply wallpaper for current user (HKCU)
-          try {
-            Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $outPath -ErrorAction SilentlyContinue
+            # Save and apply
+            $outPath = "$env:USERPROFILE\Pictures\galaxyrdp-wallpaper.jpg"
+            $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $outPath
             rundll32.exe user32.dll, UpdatePerUserSystemParameters
-            Write-Host "✅ Custom wallpaper saved to $outPath and applied." -ForegroundColor Yellow
-          } catch {
-            Write-Host "⚠️ Failed to set wallpaper in registry: $_" -ForegroundColor Yellow
-            Write-Host "ℹ️ Wallpaper file still saved at $outPath" -ForegroundColor Cyan
-          }
 
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+            Write-Host "✅ Wallpaper applied successfully (with dynamic watermark & footer)." -ForegroundColor Yellow
+          } catch {
+            Write-Host "⚠️ Wallpaper generation failed: $_" -ForegroundColor Red
+          }
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
       # =================================================================
