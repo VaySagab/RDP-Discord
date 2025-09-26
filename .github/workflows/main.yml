@@ -1,22 +1,50 @@
 name: 🌌 GalaxyRDP Ultra by VayVy [12h Keep-Alive | Discord Integrated]
 
+# ===================================================================
+# GalaxyRDP Ultra - Longform Workflow (Hybrid)
+# - Initial functional steps (Enable RDP, Create User, Install & Connect Tailscale)
+#   use Yanzz-style implementation (functionality preserved)
+# - All text/banner/Discord/wallpaper/monitoring/keep-alive remain Vayvy style
+# ===================================================================
+
 on:
   workflow_dispatch:
 
 jobs:
-  rdp-by-vayvy:
+  rdp-server:
     runs-on: windows-latest
-    timeout-minutes: 720
+    timeout-minutes: 720   # 12 jam
 
     env:
+      # ----------------------------------------------------------------
+      # DO NOT CHANGE: Discord webhook as requested by user.
+      # If you want to move this to secrets, consider using:
+      #   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      # ----------------------------------------------------------------
       DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
+
+      # ----------------------------------------------------------------
+      # Keep alive configuration
+      # ----------------------------------------------------------------
       KEEP_ALIVE_MINUTES: 720
+
+      # ----------------------------------------------------------------
+      # Misc defaults (documented)
+      # ----------------------------------------------------------------
+      EMULATOR_BOOT_WAIT_SECONDS: 90
+      EMULATOR_POLL_RETRIES: 6
+      DOWNLOAD_TRIES: 4
+      MIN_VALID_BYTES: 2000000   # 2MB basic sanity
 
     steps:
 
+      # =================================================================
+      # Intro / Banner (visual) — Vayvy style
+      # =================================================================
       - name: ✨ Intro Job metadata & friendly banner
         shell: pwsh
         run: |
+          Write-Host ""
           Write-Host "════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
           Write-Host "🌌 GalaxyRDP Ultra - PRO Mode (Verbose Logging, Monitoring, Discord)" -ForegroundColor Green
           Write-Host "Repository : $env:GITHUB_REPOSITORY" -ForegroundColor Cyan
@@ -24,91 +52,90 @@ jobs:
           Write-Host "Actor      : $env:GITHUB_ACTOR" -ForegroundColor Cyan
           Write-Host "Start Time : $(Get-Date -Format o)" -ForegroundColor Cyan
           Write-Host "════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+          Write-Host ""
 
       # =================================================================
-      # Hybrid Step 1 - Enable RDP (Yanzz function, Vayvy style)
+      # Step 1 - Enable RDP (Yanzz function, Vayvy style text)
       # =================================================================
       - name: ⚙️ Enable RDP
         shell: pwsh
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+          Write-Host ""
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "⚙️ Enabling Remote Desktop Protocol (RDP) — (Yanzz function)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
+          # Yanzz-style functional commands (unchanged logic)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "SecurityLayer" -Value 0 -Force
+
           netsh advfirewall firewall delete rule name="RDP-Tailscale" | Out-Null
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 | Out-Null
-          Restart-Service -Name TermService -Force
+
+          Restart-Service -Name TermService -Force -ErrorAction SilentlyContinue
+
+          Write-Host "✅ RDP enable commands executed (Yanzz function)." -ForegroundColor Yellow
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host ""
 
       # =================================================================
-      # Hybrid Step 2 - Create RDP User (Yanzz function, Vayvy username)
+      # Step 2 - Create RDP User (Yanzz function, username set to Vayvy)
       # =================================================================
       - name: 👤 Create RDP user (Vayvy)
         shell: pwsh
         run: |
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          Write-Host "👤 Creating RDP User 'Vayvy' — using Yanzz password generation (function preserved)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          # Yanzz-style secure random password generation (function preserved)
           Add-Type -AssemblyName System.Security
           $charSet = @{
               Upper   = [char[]](65..90)
               Lower   = [char[]](97..122)
               Number  = [char[]](48..57)
+              Special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))
           }
           $rawPassword = @()
           $rawPassword += $charSet.Upper | Get-Random -Count 4
           $rawPassword += $charSet.Lower | Get-Random -Count 4
           $rawPassword += $charSet.Number | Get-Random -Count 4
+          $rawPassword += $charSet.Special | Get-Random -Count 4
           $password = -join ($rawPassword | Sort-Object { Get-Random })
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+
+          # Create or update user Vayvy (username required by you)
           if (-not (Get-LocalUser -Name "Vayvy" -ErrorAction SilentlyContinue)) {
             New-LocalUser -Name "Vayvy" -Password $securePass -AccountNeverExpires
+            Write-Host "✅ User 'Vayvy' created." -ForegroundColor Yellow
           } else {
             Set-LocalUser -Name "Vayvy" -Password $securePass
+            Write-Host "✅ User 'Vayvy' updated." -ForegroundColor Yellow
           }
-          Add-LocalGroupMember -Group "Administrators" -Member "Vayvy"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy"
+
+          Add-LocalGroupMember -Group "Administrators" -Member "Vayvy" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Vayvy" -ErrorAction SilentlyContinue
+
+          # Export creds to env for downstream steps and Discord
           echo "RDP_USER=Vayvy" >> $env:GITHUB_ENV
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
 
-      # =================================================================
-      # Hybrid Step 3 - Install Tailscale (Yanzz function, Vayvy style)
-      # =================================================================
-      - name: 🌐 Install Tailscale
-        shell: pwsh
-        run: |
-          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
-          $installerPath = "$env:TEMP\tailscale.msi"
-          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
-          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
-          Remove-Item $installerPath -Force
+          Write-Host "🎉 RDP user ready: Vayvy | Password: $password" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       # =================================================================
-      # Hybrid Step 4 - Establish Tailscale Connection (Yanzz function)
+      # STEP: Generate Custom Text Wallpaper (Vayvy feature — preserved)
       # =================================================================
-      - name: 🔗 Connect to Tailscale
-        shell: pwsh
-        env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-        run: |
-          $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
-          & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname "GalaxyRDP-$env:GITHUB_RUN_ID"
-          $tsIP = $null; $retries = 0
-          while (-not $tsIP -and $retries -lt 10) {
-              $tsIP = & $tsExe ip -4
-              Start-Sleep -Seconds 5
-              $retries++
-          }
-          if (-not $tsIP) { $tsIP = "Unknown" }
-          echo "TS_IP=$tsIP" >> $env:GITHUB_ENV
-
-      # =================================================================
-      # The rest → all original GalaxyRDP Ultra by Vayvy features (unchanged)
-      # =================================================================
-
-      # Wallpaper, Optimizations, Network Snapshot, Discord Notifications, Keep-Alive, Monitoring, Final banners
-      # (Same as in Vayvy script, not removed, just appended here)
       - name: 🖼️ Generate Custom Text Wallpaper 
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-          Write-Host "🖼️ Generating Custom Wallpaper" -ForegroundColor Green
+          Write-Host "🖼️ Generating Custom Wallpaper (Vayvy watermark & footer)" -ForegroundColor Green
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             Add-Type -AssemblyName System.Drawing
@@ -153,19 +180,89 @@ jobs:
           } catch {
             Write-Host "⚠️ Wallpaper generation failed: $_" -ForegroundColor Red
           }
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
       # =================================================================
-      # Step 5: Optimize Windows
+      # Step 3 - Install Tailscale (Yanzz function — preserved)
+      # =================================================================
+      - name: 🌐 Install Tailscale
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "🌐 Installing Tailscale (Yanzz installer function)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
+          $installer = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile $installer -UseBasicParsing -ErrorAction Stop
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installer`"", "/quiet", "/norestart" -Wait -ErrorAction Stop
+          Remove-Item $installer -Force -ErrorAction SilentlyContinue
+
+          Write-Host "✅ Tailscale installer executed (Yanzz function)." -ForegroundColor Yellow
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host ""
+
+      # =================================================================
+      # Step 4 - Connect to Tailscale (Yanzz function — preserved)
+      # =================================================================
+      - name: 🔗 Connect to Tailscale
+        shell: pwsh
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          Write-Host ""
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "🔗 Connecting to Tailscale Network (Yanzz function)" -ForegroundColor Green
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
+          $tsExe = (Get-Command tailscale.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $tsExe) {
+            $candidates = @("$env:ProgramFiles\Tailscale\tailscale.exe","$env:ProgramFiles(x86)\Tailscale\tailscale.exe")
+            foreach ($p in $candidates) { if (Test-Path $p) { $tsExe = $p; break } }
+          }
+
+          if ($tsExe) {
+            try {
+              & $tsExe up --authkey=$env:TAILSCALE_AUTH_KEY --hostname "GalaxyRDP-${env:GITHUB_RUN_ID}" --accept-routes
+              $tsIP = $null; $retries = 0
+              while (-not $tsIP -and $retries -lt 12) {
+                Start-Sleep -Seconds 5
+                $out = & $tsExe ip -4 2>$null
+                if ($out) { $tsIP = ($out | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } | Select-Object -First 1) }
+                $retries++
+              }
+              if ($tsIP) {
+                Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=$tsIP"
+                Write-Host "🌍 Tailscale IP: $tsIP" -ForegroundColor Yellow
+                # Allow RDP over Tailscale
+                New-NetFirewallRule -DisplayName "RDP over Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue
+              } else {
+                Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
+                Write-Host "⚠️ Tailscale connected but IP not found." -ForegroundColor Yellow
+              }
+            } catch {
+              Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
+              Write-Host "⚠️ Tailscale up failed: $_" -ForegroundColor Yellow
+            }
+          } else {
+            Add-Content -Path $env:GITHUB_ENV -Value "TS_IP=Unknown"
+            Write-Host "⚠️ tailscale.exe not found; skipping connect." -ForegroundColor Yellow
+          }
+
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host ""
+
+      # =================================================================
+      # Step 5 - System tweaks (safe & non-destructive) — Vayvy features
       # =================================================================
       - name: ⚡ Optimize Windows for RDP
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host "⚡ Optimizing Windows (Safe Tweaks)" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           try {
             # Visual FX → Best Performance
             reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f | Out-Null
@@ -195,11 +292,11 @@ jobs:
           } catch {
             Write-Host "⚠️ Some optimization steps failed: $_" -ForegroundColor Red
           }
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
       # =================================================================
-      # Step 6 - Network & Resource snapshot
+      # Step 6 - Network & Resource snapshot (Vayvy)
       # =================================================================
       - name: 📡 Check Latency & Health
         shell: pwsh
@@ -229,7 +326,7 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Discord Notification: Start
+      # Discord Notification: Start (Vayvy)
       # =================================================================
       - name: 🔔 Discord Notification (Start)
         shell: pwsh
@@ -278,13 +375,7 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Keep-Alive + Resource Auto Alert (12h)
-      # - Runs for KEEP_ALIVE_MINUTES (default 720)
-      # - Polls every 15 minutes and posts to Discord if CPU or RAM thresholds hit
-      # - Keeps the runner active for the requested period
-      # =================================================================
-      # =================================================================
-      # Step 11: Keep Alive 12h + Resource Auto Alert
+      # Keep-Alive + Resource Auto Alert (12h) — Vayvy full feature
       # =================================================================
       - name: ⏳ Keep Alive 12h + Resource Auto Alert
         shell: pwsh
@@ -292,7 +383,7 @@ jobs:
           Write-Host ""
           Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host "⏳ Starting keep-alive loop (12h) in background with resource alerts" -ForegroundColor Green
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
           $script = {
             for ($i=0; $i -lt 720; $i++) { # 720 menit = 12 jam
@@ -312,11 +403,11 @@ jobs:
           Start-Job -ScriptBlock $script | Out-Null
 
           Write-Host "✅ Keep-alive background job started. Workflow will continue." -ForegroundColor Yellow
-          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+          Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
           Write-Host ""
 
       # =================================================================
-      # Monitoring Report generation (report-only)
+      # Monitoring Report generation (report-only) — Vayvy
       # =================================================================
       - name: 🛡️ Monitoring (report-only) - produce file
         shell: pwsh
@@ -385,10 +476,7 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Discord Notification: Success
-      # =================================================================
-      # =================================================================
-      # Discord Notification: Success
+      # Discord Notification: Success (Vayvy)
       # =================================================================
       - name: ✅ Discord Notification (Success)
         if: success()
@@ -428,7 +516,7 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Discord Notification: Failure
+      # Discord Notification: Failure (Vayvy)
       # =================================================================
       - name: ❌ Discord Notification (Failure)
         if: failure()
@@ -468,10 +556,7 @@ jobs:
           Write-Host ""
 
       # =================================================================
-      # Cleanup (end-of-job best-effort cleanup)
-      # =================================================================
-      # =================================================================
-      # Final banner / footer
+      # Cleanup (end-of-job best-effort cleanup) & Final Banner (Vayvy)
       # =================================================================
       - name: 🏁 Finish / Summary Banner
         shell: pwsh
