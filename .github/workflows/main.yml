@@ -22,7 +22,7 @@ jobs:
       # If you want to move this to secrets, consider using:
       #   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       # ----------------------------------------------------------------
-      DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1420855927409737981/Lwex2weTGgSY6ZuM6NEZDsD3NMMpYakcMB1UC_PWEAITClQLmNmildPaPWOipM1MYAmu"
+      DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1421078099763789845/u1bE8nK9wIBfMR1pii65HsQqb28BfcF65VMaLzurUGtIoaKeYg1Eb67gLG9aLdWCJ0MM"
 
       # ----------------------------------------------------------------
       # Keep alive configuration
