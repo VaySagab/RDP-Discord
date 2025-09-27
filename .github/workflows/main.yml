@@ -696,15 +696,12 @@ jobs:
             Start-Sleep -Seconds 300
         }
 
-# ==================================================
-# 🎉 FINAL DEPLOYMENT BANNER
-# ==================================================
-Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "🎉 ULTIMATE RDP DEPLOYMENT COMPLETED SUCCESSFULLY! 🎉" -ForegroundColor Yellow
-Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "👨‍💻 Created by: Vayvy" -ForegroundColor Green
-Write-Host "🕒 Completion Time: $(Get-Date)" -ForegroundColor Green
-Write-Host "🔗 Tailscale IP: $env:TAILSCALE_IP" -ForegroundColor Green
-Write-Host "👤 Username: $env:RDP_USERNAME" -ForegroundColor Green
-Write-Host "⏰ Session Duration: $env:KEEP_ALIVE_MINUTES minutes" -ForegroundColor Green
-Write-Host "==================================================" -ForegroundColor Cyan
+        Write-Host "==================================================" -ForegroundColor Cyan
+        Write-Host "🎉 ULTIMATE RDP DEPLOYMENT COMPLETED SUCCESSFULLY! 🎉" -ForegroundColor Yellow
+        Write-Host "==================================================" -ForegroundColor Cyan
+        Write-Host "👨‍💻 Created by: Vayvy" -ForegroundColor Green
+        Write-Host "🕒 Completion Time: $(Get-Date)" -ForegroundColor Green
+        Write-Host "🔗 Tailscale IP: $env:TAILSCALE_IP" -ForegroundColor Green
+        Write-Host "👤 Username: $env:RDP_USERNAME" -ForegroundColor Green
+        Write-Host "⏰ Session Duration: $env:KEEP_ALIVE_MINUTES minutes" -ForegroundColor Green
+        Write-Host "==================================================" -ForegroundColor Cyan
